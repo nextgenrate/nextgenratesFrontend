@@ -1,0 +1,807 @@
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import AppLayout from '../../components/layout/AppLayout';
+import { Button, ModeTag, PortCode } from '../../components/ui/index';
+import { PortInput, ToggleGroup, Select, MultiSelect, Checkbox } from '../../components/common/index';
+import { SEA_PORTS, AIR_PORTS, CONTAINER_TYPES, CURRENCIES, CHARGE_OPTIONS, RECENT_SEARCHES_DEFAULT } from '../../data/mockData';
+
+// ─────────────────────────────────────────────────────────────
+//  DESIGN SYSTEM — Light Professional Theme
+//
+//  Background layers (light → surface → elevated):
+//  Page bg:     #F0F4FB  (cool light grey-blue, airy)
+//  Panel:       #FFFFFF  (crisp white card)
+//  Input bg:    #F5F8FF  (very subtle blue tint inside white)
+//  Input focus: #FFFFFF  (pure white when active)
+//
+//  Brand accents from NextGen logo:
+//  Navy:  #0B1D5E  (logo dark navy — text, borders, tabs)
+//  Blue:  #1A4FD8  (electric blue — active states)
+//  Cyan:  #00C2FF  (arrow accent — buttons, highlights)
+//
+//  Text (always readable, WCAG AA+):
+//  Primary:  #0B1D5E   (navy — headings, values)
+//  Body:     #2D3F6B   (dark blue-grey — body text)
+//  Mid:      #5A6E9C   (medium — labels, secondary)
+//  Muted:    #8FA3C8   (light — placeholders, timestamps)
+// ─────────────────────────────────────────────────────────────
+const C = {
+  // Page & surfaces
+  pageBg:      '#F0F4FB',
+  panel:       '#FFFFFF',
+  inputBg:     '#F5F8FF',
+  inputFocus:  '#FFFFFF',
+  hover:       '#EEF3FF',
+
+  // Brand
+  navy:        '#0B1D5E',
+  navyMid:     '#1A3070',
+  blue:        '#1A4FD8',
+  blueDim:     '#EEF3FF',
+  cyan:        '#00C2FF',
+  cyanDim:     '#E6F9FF',
+
+  // Gradient for hero banner & primary button
+  heroGrad:    'linear-gradient(135deg, #0B1D5E 0%, #1A4FD8 60%, #00C2FF 100%)',
+  btnGrad:     'linear-gradient(90deg, #1540C0 0%, #1A6FE8 55%, #00C2FF 100%)',
+
+  // Text
+  textPrimary: '#0B1D5E',
+  textBody:    '#2D3F6B',
+  textMid:     '#5A6E9C',
+  textMuted:   '#8FA3C8',
+  textWhite:   '#FFFFFF',
+
+  // Borders
+  border:      '#DDE5F5',
+  borderMid:   '#BCC9E8',
+  borderBlue:  '#1A4FD8',
+  borderCyan:  '#00C2FF',
+
+  // Shadows
+  shadow:      '0 2px 12px rgba(11,29,94,0.08)',
+  shadowMd:    '0 6px 24px rgba(11,29,94,0.10)',
+  shadowLg:    '0 16px 48px rgba(11,29,94,0.14)',
+  glowCyan:    '0 0 0 3px rgba(0,194,255,0.18)',
+  glowBlue:    '0 0 0 3px rgba(26,79,216,0.15)',
+};
+
+// ─── Shared component styles ──────────────────────────────────
+const mkTrigger = (open) => ({
+  display: 'flex', alignItems: 'center', gap: 9,
+  width: '100%', height: 46, padding: '0 14px',
+  background: open ? C.inputFocus : C.inputBg,
+  border: `1.5px solid ${open ? C.borderCyan : C.border}`,
+  borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit',
+  boxShadow: open ? C.glowCyan : 'none',
+  transition: 'all 0.18s', outline: 'none',
+});
+
+const dropBase = {
+  position: 'absolute', top: 'calc(100% + 7px)', left: 0,
+  background: C.panel,
+  border: `1.5px solid ${C.border}`,
+  borderRadius: 14,
+  boxShadow: C.shadowLg,
+  zIndex: 400,
+};
+
+const doneBtn = {
+  width: '100%', height: 42,
+  background: C.btnGrad,
+  color: '#fff', border: 'none', borderRadius: 9,
+  fontSize: 14, fontWeight: 700, cursor: 'pointer',
+  fontFamily: 'inherit',
+  boxShadow: '0 4px 16px rgba(0,194,255,0.25)',
+  letterSpacing: '0.01em',
+};
+
+const inputBase = {
+  width: '100%', height: 46, padding: '0 14px',
+  background: C.inputBg, border: `1.5px solid ${C.border}`,
+  borderRadius: 10, fontSize: 14, color: C.textPrimary,
+  fontFamily: 'inherit', outline: 'none', transition: 'all 0.18s',
+};
+
+// ─── Small helpers ────────────────────────────────────────────
+const Lbl = ({ children }) => (
+  <span style={{ display: 'block', fontSize: 11, fontWeight: 700, color: C.textMid, textTransform: 'uppercase', letterSpacing: '0.09em', marginBottom: 7 }}>
+    {children}
+  </span>
+);
+
+const Chev = ({ open }) => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: C.textMuted, transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s', flexShrink: 0 }}>
+    <path d="M6 9l6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+  </svg>
+);
+
+const TabIcon = ({ mode, active }) => {
+  const c = active ? C.cyan : C.textMuted;
+  if (mode === 'FCL') return <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="1" stroke={c} strokeWidth="1.8"/><path d="M8 6v12M16 6v12" stroke={c} strokeWidth="1.8" strokeLinecap="round"/></svg>;
+  if (mode === 'LCL') return <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><polygon points="12 2 2 7 12 12 22 7 12 2" stroke={c} strokeWidth="1.8" fill="none" strokeLinejoin="round"/><polyline points="2 17 12 22 22 17" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/><polyline points="2 12 12 17 22 12" stroke={c} strokeWidth="1.8" fill="none" strokeLinecap="round"/></svg>;
+  if (mode === 'AIR') return <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 16l-6-6 2-7-2-1-4 6-4-3-1 1 2 4-3 2 1 2 4-1 1 4 2-1V16Z" stroke={c} strokeWidth="1.8" fill="none" strokeLinejoin="round"/></svg>;
+  return <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="1" y="7" width="15" height="10" rx="1" stroke={c} strokeWidth="1.8" fill="none"/><path d="M16 10h3l3 4v3h-6V10Z" stroke={c} strokeWidth="1.8" strokeLinejoin="round" fill="none"/><circle cx="6" cy="19" r="2" stroke={c} strokeWidth="1.8" fill="none"/><circle cx="19" cy="19" r="2" stroke={c} strokeWidth="1.8" fill="none"/></svg>;
+};
+
+function useDropdown() {
+  const [open, setOpen] = React.useState(false);
+  const ref = React.useRef();
+  React.useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, []);
+  return { open, setOpen, ref };
+}
+
+// ─── Constants ────────────────────────────────────────────────
+const TABS = [
+  { id: 'FCL', label: 'FCL' },
+  { id: 'LCL', label: 'LCL' },
+  { id: 'AIR', label: 'AIR' },
+  { id: 'LAND', label: 'LAND', disabled: true },
+];
+
+const TODAY = new Date().toISOString().split('T')[0];
+const DEFAULT = {
+  tab: 'FCL', originType: 'CY', destType: 'CY',
+  originCarrierSD: false, originIncludeNearby: false,
+  destCarrierSD: false, destIncludeNearby: false,
+  origin: null, dest: null,
+  containerCode: '', qty: '1', cargoKg: '18000',
+  cbm: '4', wm: '4', chargeableKg: '860',
+  sailingDate: TODAY, currency: 'USD',
+  charges: ['freight', 'origin', 'dest'], refName: '',
+};
+
+const ORIGIN_TOGGLES = { FCL: ['DOOR', 'CY'], LCL: ['DOOR', 'CFS'], AIR: null };
+const DEST_TOGGLES   = { FCL: ['CY', 'DOOR'], LCL: ['CFS', 'DOOR'], AIR: null };
+const ORIGIN_DEFAULT = { FCL: 'CY', LCL: 'CFS', AIR: null };
+const DEST_DEFAULT   = { FCL: 'CY', LCL: 'CFS', AIR: null };
+
+// ─────────────────────────────────────────────────────────────
+export default function RateSearchPage() {
+  const navigate = useNavigate();
+  const [form, setForm]             = useState(DEFAULT);
+  const [recentSearches, setRecent] = useState(RECENT_SEARCHES_DEFAULT);
+  const [loadOpen, setLoadOpen]     = useState(false);
+  const [formError, setFormError]   = useState('');
+
+  const set = k => v => setForm(f => ({ ...f, [k]: v }));
+
+  const changeTab = tab => {
+    setForm(f => ({ ...f, tab, originType: ORIGIN_DEFAULT[tab] || 'CY', destType: DEST_DEFAULT[tab] || 'CY', origin: null, dest: null }));
+    setFormError('');
+  };
+
+  const swapPorts = () => setForm(f => ({ ...f, origin: f.dest, dest: f.origin }));
+
+  const handleSearch = () => {
+    if (!form.origin) { setFormError('Please select an origin port or airport.'); return; }
+    if (!form.dest)   { setFormError('Please select a destination port or airport.'); return; }
+    setFormError('');
+    const mode = form.tab === 'FCL' ? 'SEA-FCL' : form.tab === 'LCL' ? 'SEA-LCL' : 'AIR';
+    const loadLabel = form.tab === 'AIR' ? `${form.chargeableKg} KG` : form.tab === 'LCL' ? `Charged Wt: ${form.wm} W/M` : form.containerCode ? `${form.containerCode} x${form.qty}` : 'N/A';
+    const entry = { id: `rs_${Date.now()}`, originCode: form.origin.code, originName: `${form.origin.name}, ${form.origin.country}`, destCode: form.dest.code, destName: `${form.dest.name}, ${form.dest.country}`, mode, load: loadLabel, ago: 'just now' };
+    setRecent(p => [entry, ...p.slice(0, 4)]);
+    navigate('/rates/results', { state: { origin: form.origin, dest: form.dest, tab: form.tab, containerCode: form.containerCode, qty: form.qty, sailingDate: form.sailingDate } });
+  };
+
+  const chargesLabel = (() => {
+    const sel = CHARGE_OPTIONS.filter(o => form.charges.includes(o.id));
+    return sel.length ? sel.map(o => o.label.split(' ')[0]).join(', ') : 'Freight Only';
+  })();
+
+  const activePorts   = form.tab === 'AIR' ? AIR_PORTS : SEA_PORTS;
+  const originToggles = ORIGIN_TOGGLES[form.tab];
+  const destToggles   = DEST_TOGGLES[form.tab];
+
+  const iFocus = e => { e.target.style.borderColor = C.borderCyan; e.target.style.boxShadow = C.glowCyan; e.target.style.background = C.inputFocus; };
+  const iBlur  = e => { e.target.style.borderColor = C.border;     e.target.style.boxShadow = 'none';      e.target.style.background = C.inputBg; };
+
+  return (
+    <AppLayout>
+      <style>{`
+        /* ── input overrides inside rsp-root ── */
+        .rsp-root input:not([type=checkbox]),
+        .rsp-root input[type=date],
+        .rsp-root input[type=number] {
+          background:    ${C.inputBg} !important;
+          border:        1.5px solid ${C.border} !important;
+          border-radius: 10px !important;
+          color:         ${C.textPrimary} !important;
+          height:        46px !important;
+          font-size:     14px !important;
+          font-family:   inherit !important;
+          transition:    all 0.18s !important;
+        }
+        .rsp-root input::placeholder { color: ${C.textMuted} !important; font-size: 13.5px !important; }
+        .rsp-root input:focus {
+          border-color: ${C.borderCyan} !important;
+          box-shadow:   ${C.glowCyan} !important;
+          background:   ${C.inputFocus} !important;
+          outline:      none !important;
+        }
+        .rsp-root input[type=date]::-webkit-calendar-picker-indicator { cursor: pointer; opacity: 0.5; }
+        .rsp-root input[type=number]::-webkit-inner-spin-button { opacity: 0.3; }
+
+        /* dropdown selects */
+        .rsp-drop select {
+          background:    ${C.inputBg} !important;
+          border:        1.5px solid ${C.border} !important;
+          border-radius: 9px !important;
+          color:         ${C.textPrimary} !important;
+          font-family:   inherit !important;
+          height:        40px !important;
+          padding:       0 10px !important;
+          font-size:     13.5px !important;
+          width:         100%;
+          cursor:        pointer;
+        }
+        .rsp-drop select:focus { border-color: ${C.borderCyan} !important; outline: none; }
+        .rsp-drop select option { background: #fff; color: ${C.textPrimary}; }
+
+        /* ── Port input overrides (shared component) ── */
+        .rsp-root [class*="port"] input,
+        .rsp-root [class*="Port"] input {
+          background:  ${C.inputBg} !important;
+          border:      1.5px solid ${C.border} !important;
+          color:       ${C.textPrimary} !important;
+          font-size:   14px !important;
+        }
+
+        /* ── hover states ── */
+        .ng-card { transition: all 0.2s ease; }
+        .ng-card:hover {
+          border-color: ${C.borderCyan} !important;
+          box-shadow: ${C.shadowMd}, 0 0 0 1px rgba(0,194,255,0.2) !important;
+          transform: translateY(-3px);
+        }
+
+        .ng-swap { transition: all 0.22s ease; }
+        .ng-swap:hover { border-color: ${C.borderCyan} !important; background: ${C.cyanDim} !important; color: ${C.cyan} !important; transform: rotate(180deg); }
+
+        .ng-btn-primary {
+          background: ${C.btnGrad} !important;
+          border: none !important; color: #fff !important; font-weight: 700 !important;
+          box-shadow: 0 4px 18px rgba(0,194,255,0.3) !important;
+          transition: all 0.18s !important; letter-spacing: 0.01em !important;
+        }
+        .ng-btn-primary:hover { filter: brightness(1.06) !important; transform: translateY(-1px) !important; box-shadow: 0 6px 24px rgba(0,194,255,0.4) !important; }
+
+        .ng-btn-sec {
+          background: #fff !important; border: 1.5px solid ${C.border} !important;
+          color: ${C.textBody} !important; transition: all 0.18s !important;
+        }
+        .ng-btn-sec:hover { border-color: ${C.borderBlue} !important; color: ${C.blue} !important; background: ${C.blueDim} !important; }
+
+        .ng-reset { transition: color 0.15s; }
+        .ng-reset:hover { color: ${C.blue} !important; }
+
+        .ng-tab { transition: all 0.15s; font-family: inherit; }
+        .ng-tab:hover:not(.ng-tab-on):not(:disabled) { color: ${C.textBody} !important; background: ${C.hover} !important; }
+
+        .ng-tog-btn { transition: all 0.15s; }
+        .ng-tog-btn:hover:not(.active) { background: ${C.hover} !important; color: ${C.navy} !important; }
+
+        .ng-opt { display:flex; align-items:center; gap:9px; width:100%; padding:9px 12px; border-radius:8px; background:none; border:none; cursor:pointer; font-family:inherit; text-align:left; transition:background 0.1s; }
+        .ng-opt:hover { background: ${C.hover} !important; }
+        .ng-opt.sel { background: ${C.cyanDim} !important; }
+
+        .ng-stat { transition: all 0.18s; cursor: default; }
+        .ng-stat:hover { border-color: ${C.borderCyan} !important; box-shadow: ${C.shadowMd} !important; transform: translateY(-2px); }
+
+        .ng-live { animation: livepulse 2s ease-in-out infinite; }
+        @keyframes livepulse { 0%,100%{box-shadow:0 0 0 0 rgba(0,194,255,0.5)} 50%{box-shadow:0 0 0 5px rgba(0,194,255,0)} }
+      `}</style>
+
+      <div className="rsp-root">
+
+        {/* ── HERO BANNER ──────────────────────────────────── */}
+        <div style={{ background: C.heroGrad, padding: '48px 40px 80px', position: 'relative', overflow: 'hidden' }}>
+          {/* decorative circles */}
+          <div style={{ position: 'absolute', top: -60, right: -60, width: 280, height: 280, borderRadius: '50%', border: '1px solid rgba(255,255,255,0.08)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', top: -20, right: -20, width: 180, height: 180, borderRadius: '50%', border: '1px solid rgba(0,194,255,0.15)', pointerEvents: 'none' }} />
+          <div style={{ position: 'absolute', bottom: -40, left: '30%', width: 200, height: 200, borderRadius: '50%', background: 'radial-gradient(circle, rgba(0,194,255,0.08) 0%, transparent 70%)', pointerEvents: 'none' }} />
+
+          <div style={{ maxWidth: 1320, margin: '0 auto' }}>
+            {/* Live badge */}
+            <div className="ng-f1" style={{ display: 'inline-flex', alignItems: 'center', gap: 9, marginBottom: 20, background: 'rgba(0,194,255,0.15)', border: '1px solid rgba(0,194,255,0.35)', borderRadius: 99, padding: '6px 16px 6px 9px' }}>
+              <span className="ng-live" style={{ width: 8, height: 8, borderRadius: '50%', background: C.cyan, display: 'inline-block', flexShrink: 0 }} />
+              <span style={{ fontSize: 12.5, color: 'rgba(255,255,255,0.9)', fontWeight: 600 }}>Live rates · 50+ global carriers</span>
+            </div>
+
+            <h1 className="ng-f1" style={{ fontSize: 40, fontWeight: 900, color: '#fff', marginBottom: 10, letterSpacing: '-0.03em', lineHeight: 1.1 }}>
+              Find the Best{' '}
+              <span style={{ color: C.cyan }}>Freight Rates</span>
+            </h1>
+            <p className="ng-f1" style={{ fontSize: 16, color: 'rgba(255,255,255,0.7)', fontWeight: 400, lineHeight: 1.6 }}>
+              Compare FCL · LCL · Air — instant carrier rates, transit times &amp; charges
+            </p>
+          </div>
+        </div>
+
+        <div style={{ maxWidth: 1320, margin: '0 auto', padding: '0 28px 72px' }}>
+
+          {/* ── SEARCH PANEL (overlaps hero) ───────────────── */}
+          <div className="ng-f2" style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 20, padding: '0 30px 28px', boxShadow: C.shadowLg, marginTop: -48, position: 'relative', zIndex: 10 }}>
+
+            {/* ── Tabs ────────────────────────────────────── */}
+            <div style={{ display: 'flex', borderBottom: `1.5px solid ${C.border}`, marginBottom: 26, gap: 0 }}>
+              {TABS.map(({ id, label, disabled }) => {
+                const active = form.tab === id;
+                return (
+                  <button key={id} type="button" disabled={disabled}
+                    className={`ng-tab ${active ? 'ng-tab-on' : ''}`}
+                    onClick={() => !disabled && changeTab(id)}
+                    style={{
+                      display: 'flex', alignItems: 'center', gap: 8,
+                      padding: '16px 22px', fontSize: 14,
+                      fontWeight: active ? 700 : 500,
+                      color: active ? C.navy : disabled ? C.textMuted : C.textMid,
+                      background: active ? 'transparent' : 'transparent',
+                      border: 'none',
+                      borderBottom: `2.5px solid ${active ? C.cyan : 'transparent'}`,
+                      cursor: disabled ? 'not-allowed' : 'pointer',
+                      marginBottom: -1.5, borderRadius: '0',
+                      opacity: disabled ? 0.4 : 1,
+                    }}>
+                    <TabIcon mode={id} active={active} />
+                    {label}
+                    {disabled && <span style={{ fontSize: 9, fontWeight: 700, background: C.hover, color: C.textMuted, padding: '1px 6px', borderRadius: 4 }}>Soon</span>}
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* ── Origin / Swap / Destination ─────────────── */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 52px 1fr', gap: 18, alignItems: 'start', marginBottom: 20 }}>
+
+              {/* Origin */}
+              <div>
+                <Lbl>Origin</Lbl>
+                {originToggles && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <NgToggle options={originToggles} value={form.originType} onChange={set('originType')} />
+                    <NgCheck checked={form.originCarrierSD} onChange={set('originCarrierSD')} label="Carrier SD" />
+                    <NgCheck checked={form.originIncludeNearby} onChange={set('originIncludeNearby')} label="Nearby" />
+                  </div>
+                )}
+                {form.tab === 'AIR' && <div style={{ height: 6 }} />}
+                <PortInput
+                  value={form.origin} onChange={set('origin')} ports={activePorts}
+                  placeholder={form.tab === 'AIR' ? 'Search origin airport…' : form.originType === 'DOOR' ? 'Enter door address…' : 'Search origin port or city…'}
+                  isDoor={form.originType === 'DOOR'}
+                />
+              </div>
+
+              {/* Swap */}
+              <div style={{ display: 'flex', alignItems: 'flex-end', justifyContent: 'center', paddingBottom: 2, paddingTop: originToggles ? 42 : 0 }}>
+                <button type="button" onClick={swapPorts} className="ng-swap"
+                  style={{ width: 46, height: 46, border: `1.5px solid ${C.border}`, borderRadius: 10, background: '#fff', color: C.textMid, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', fontSize: 20, boxShadow: C.shadow }}>
+                  ⇄
+                </button>
+              </div>
+
+              {/* Destination */}
+              <div>
+                <Lbl>Destination</Lbl>
+                {destToggles && (
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 10, flexWrap: 'wrap' }}>
+                    <NgToggle options={destToggles} value={form.destType} onChange={set('destType')} />
+                    <NgCheck checked={form.destCarrierSD} onChange={set('destCarrierSD')} label="Carrier SD" />
+                    <NgCheck checked={form.destIncludeNearby} onChange={set('destIncludeNearby')} label="Nearby" />
+                  </div>
+                )}
+                {form.tab === 'AIR' && <div style={{ height: 6 }} />}
+                <PortInput
+                  value={form.dest} onChange={set('dest')} ports={activePorts}
+                  placeholder={form.tab === 'AIR' ? 'Search destination airport…' : form.destType === 'DOOR' ? 'Enter door address…' : 'Search destination port or city…'}
+                  isDoor={form.destType === 'DOOR'}
+                />
+              </div>
+            </div>
+
+            {/* thin divider */}
+            <div style={{ height: 1, background: C.border, marginBottom: 20 }} />
+
+            {/* ── Filter Row ──────────────────────────────── */}
+            <div style={{ display: 'flex', gap: 14, alignItems: 'flex-end', flexWrap: 'wrap', marginBottom: 24 }}>
+
+              {/* Sailing Date */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                <Lbl>Sailing Date</Lbl>
+                <div style={{ position: 'relative' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, pointerEvents: 'none', zIndex: 1 }}>
+                    <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+                    <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                  </svg>
+                  <input type="date" value={form.sailingDate} min={TODAY}
+                    onChange={e => setForm(f => ({ ...f, sailingDate: e.target.value }))}
+                    onFocus={iFocus} onBlur={iBlur}
+                    style={{ ...inputBase, paddingLeft: 40, minWidth: 172 }} />
+                </div>
+              </div>
+
+              {/* FCL Load */}
+              {form.tab === 'FCL' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 210 }}>
+                  <Lbl>Load Type</Lbl>
+                  <NgLoadType code={form.containerCode} qty={form.qty} kg={form.cargoKg}
+                    onUpdate={(c, q, k) => setForm(f => ({ ...f, containerCode: c, qty: q, cargoKg: k }))}
+                    open={loadOpen} setOpen={setLoadOpen} />
+                </div>
+              )}
+
+              {/* LCL */}
+              {form.tab === 'LCL' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 220 }}>
+                  <Lbl>Load Details</Lbl>
+                  <NgLCL wm={form.wm} cbm={form.cbm} onUpdate={(wm, cbm) => setForm(f => ({ ...f, wm, cbm }))} />
+                </div>
+              )}
+
+              {/* AIR weight */}
+              {form.tab === 'AIR' && (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 195 }}>
+                  <Lbl>Chargeable Weight</Lbl>
+                  <div style={{ display: 'flex', alignItems: 'center', background: C.inputBg, border: `1.5px solid ${C.border}`, borderRadius: 10, height: 46, overflow: 'hidden' }}>
+                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color: C.textMuted, marginLeft: 13, flexShrink: 0 }}>
+                      <path d="M3 9h18M3 15h18M12 3v18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+                    </svg>
+                    <input type="number" min="0.1" step="0.1" value={form.chargeableKg}
+                      onChange={e => set('chargeableKg')(e.target.value)}
+                      style={{ flex: 1, height: '100%', padding: '0 10px', border: 'none', background: 'transparent', fontSize: 14, color: C.textPrimary, fontFamily: 'inherit', outline: 'none' }} />
+                    <span style={{ padding: '0 13px', background: C.cyanDim, borderLeft: `1px solid rgba(0,194,255,0.2)`, height: '100%', display: 'flex', alignItems: 'center', fontSize: 11.5, fontWeight: 800, color: '#007DAA', letterSpacing: '0.08em' }}>KG</span>
+                  </div>
+                </div>
+              )}
+
+              {/* Charges */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 230 }}>
+                <Lbl>Locals &amp; Charges</Lbl>
+                <NgMultiSel value={form.charges} onChange={set('charges')} options={CHARGE_OPTIONS} triggerLabel={chargesLabel}
+                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color: C.textMuted }}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>} />
+              </div>
+
+              {/* Reference */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, flex: 1, minWidth: 180 }}>
+                <Lbl>Reference Name</Lbl>
+                <div style={{ position: 'relative' }}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ position: 'absolute', left: 13, top: '50%', transform: 'translateY(-50%)', color: C.textMuted, pointerEvents: 'none' }}>
+                    <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/>
+                  </svg>
+                  <input value={form.refName} onChange={e => set('refName')(e.target.value)}
+                    placeholder="Optional reference…" onFocus={iFocus} onBlur={iBlur}
+                    style={{ ...inputBase, paddingLeft: 38 }} />
+                </div>
+              </div>
+
+              {/* Currency */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 6, minWidth: 128 }}>
+                <Lbl>Currency</Lbl>
+                <NgSel value={form.currency} onChange={set('currency')}
+                  options={CURRENCIES.map(c => ({ value: c.code, label: `${c.symbol} ${c.code}` }))} />
+              </div>
+            </div>
+
+            {/* Error */}
+            {formError && (
+              <div style={{ display: 'flex', alignItems: 'center', gap: 10, background: '#FEF2F2', border: '1.5px solid #FECACA', borderRadius: 10, padding: '12px 16px', fontSize: 13.5, color: '#B91C1C', marginBottom: 18 }}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                {formError}
+              </div>
+            )}
+
+            {/* Actions */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <button type="button" onClick={() => setForm(DEFAULT)} className="ng-reset"
+                style={{ display: 'flex', alignItems: 'center', gap: 7, fontSize: 13.5, fontWeight: 500, color: C.textMid, background: 'none', border: 'none', cursor: 'pointer', padding: '4px 2px', fontFamily: 'inherit' }}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><path d="M21 12a9 9 0 01-9 9 9 9 0 01-6.3-2.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M3 12a9 9 0 019-9 9 9 0 016.3 2.6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/><path d="M21 3v5h-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                Reset
+              </button>
+              <div style={{ display: 'flex', gap: 12 }}>
+                <button type="button" className="ng-btn-sec"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 8, height: 46, padding: '0 22px', fontSize: 14, fontWeight: 600, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"><rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/><path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                  Schedule Search
+                </button>
+                <button type="button" onClick={handleSearch} className="ng-btn-primary"
+                  style={{ display: 'inline-flex', alignItems: 'center', gap: 9, height: 46, padding: '0 30px', fontSize: 15, borderRadius: 10, cursor: 'pointer', fontFamily: 'inherit' }}>
+                  Search Rates
+                  <svg width="15" height="15" viewBox="0 0 24 24" fill="none"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                </button>
+              </div>
+            </div>
+          </div>
+
+          {/* ── Stats Strip ────────────────────────────────── */}
+          <div className="ng-f3" style={{ display: 'grid', gridTemplateColumns: 'repeat(4,1fr)', gap: 14, marginTop: 20 }}>
+            {[
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><rect x="2" y="6" width="20" height="12" rx="1" stroke={C.blue} strokeWidth="1.8"/><path d="M8 6v12M16 6v12" stroke={C.blue} strokeWidth="1.8" strokeLinecap="round"/></svg>, value: '50+',   label: 'Carriers connected', color: C.blue, bg: C.blueDim },
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" stroke="#059669" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>, value: '10K+',  label: 'Global routes',      color: '#059669', bg: '#ECFDF5' },
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="#007DAA" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="#007DAA" strokeWidth="1.8" strokeLinecap="round"/></svg>,        value: 'Live',   label: 'Rate updates',       color: '#007DAA', bg: C.cyanDim },
+              { icon: <svg width="20" height="20" viewBox="0 0 24 24" fill="none"><path d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" stroke="#7C3AED" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"/></svg>, value: '99.8%', label: 'Rate accuracy',      color: '#7C3AED', bg: '#F5F3FF' },
+            ].map((s, i) => (
+              <div key={i} className="ng-stat"
+                style={{ background: C.panel, border: `1px solid ${C.border}`, borderRadius: 14, padding: '18px 20px', display: 'flex', alignItems: 'center', gap: 14, boxShadow: C.shadow }}>
+                <div style={{ width: 46, height: 46, borderRadius: 12, background: s.bg, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                  {s.icon}
+                </div>
+                <div>
+                  <div style={{ fontSize: 24, fontWeight: 900, color: s.color, letterSpacing: '-0.03em', lineHeight: 1.1 }}>{s.value}</div>
+                  <div style={{ fontSize: 12.5, color: C.textMid, fontWeight: 500, marginTop: 3 }}>{s.label}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* ── Recent Searches ─────────────────────────────── */}
+          <section className="ng-f4" style={{ marginTop: 36 }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 9, fontSize: 17, fontWeight: 700, color: C.textPrimary }}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color: C.textMid }}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                Recent Searches
+              </div>
+              <button style={{ fontSize: 13.5, color: C.blue, fontWeight: 600, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>
+                Show All →
+              </button>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3,1fr)', gap: 16 }}>
+              {recentSearches.slice(0, 3).map(r => (
+                <div key={r.id} className="ng-card"
+                  onClick={handleSearch}
+                  style={{ background: C.panel, border: `1.5px solid ${C.border}`, borderRadius: 16, padding: '18px 20px', cursor: 'pointer', boxShadow: C.shadow, position: 'relative', overflow: 'hidden' }}>
+
+                  {/* top accent */}
+                  <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 3, background: C.heroGrad, borderRadius: '16px 16px 0 0' }} />
+
+                  {/* Origin */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6, marginTop: 4 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 6, background: C.hover, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ color: C.blue }}><circle cx="12" cy="5" r="2" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v13M5 10h14" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                    </div>
+                    <span style={{ fontSize: 13, color: C.textBody, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 500 }}>{r.originName}</span>
+                    <span style={{ background: C.hover, color: C.navy, fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 5, fontFamily: 'monospace', flexShrink: 0, letterSpacing: '0.04em', border: `1px solid ${C.border}` }}>{r.originCode}</span>
+                  </div>
+
+                  {/* connector */}
+                  <div style={{ marginLeft: 7, marginBottom: 4, color: C.border }}>
+                    <svg width="12" height="14" viewBox="0 0 12 14" fill="none"><path d="M6 0v10M2 8l4 4 4-4" stroke={C.textMuted} strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/></svg>
+                  </div>
+
+                  {/* Destination */}
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 16 }}>
+                    <div style={{ width: 24, height: 24, borderRadius: 6, background: C.cyanDim, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" style={{ color: '#007DAA' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z" stroke="currentColor" strokeWidth="1.8"/><circle cx="12" cy="10" r="3" stroke="currentColor" strokeWidth="1.8"/></svg>
+                    </div>
+                    <span style={{ fontSize: 13, color: C.textPrimary, flex: 1, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: 600 }}>{r.destName}</span>
+                    <span style={{ background: C.cyanDim, color: '#007DAA', fontSize: 10.5, fontWeight: 700, padding: '2px 7px', borderRadius: 5, fontFamily: 'monospace', flexShrink: 0, letterSpacing: '0.04em', border: '1px solid rgba(0,194,255,0.2)' }}>{r.destCode}</span>
+                  </div>
+
+                  <div style={{ height: 1, background: C.border, marginBottom: 12 }} />
+
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                      <NgModeTag mode={r.mode} />
+                      <span style={{ fontSize: 12, color: C.textMid, fontWeight: 500 }}>{r.load}</span>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 11.5, color: C.textMuted }}>
+                      <svg width="11" height="11" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+                      {r.ago}
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </div>
+    </AppLayout>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+//  SUB-COMPONENTS  (all light-themed)
+// ─────────────────────────────────────────────────────────────
+
+function NgModeTag({ mode }) {
+  const m = {
+    'SEA-FCL': { bg: '#EEF3FF', color: '#1A4FD8', border: '#BFCFFF' },
+    'SEA-LCL': { bg: '#E6F9FF', color: '#007DAA', border: '#B3E9FF' },
+    'AIR':     { bg: '#F5F3FF', color: '#6D28D9', border: '#DDD6FE' },
+    'LAND':    { bg: '#FFFBEB', color: '#B45309', border: '#FDE68A' },
+  };
+  const s = m[mode] || m['SEA-FCL'];
+  return <span style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 6, fontSize: 11, fontWeight: 700, letterSpacing: '0.05em', background: s.bg, color: s.color, border: `1px solid ${s.border}`, whiteSpace: 'nowrap' }}>{mode}</span>;
+}
+
+function NgToggle({ options, value, onChange }) {
+  return (
+    <div style={{ display: 'inline-flex', border: `1.5px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', background: C.inputBg }}>
+      {options.map(opt => (
+        <button key={opt} type="button" onClick={() => onChange(opt)} className="ng-tog-btn"
+          style={{
+            padding: '5px 14px', fontSize: 12.5, fontWeight: 600, border: 'none', cursor: 'pointer',
+            background: value === opt ? C.navy : 'transparent',
+            color:      value === opt ? '#fff'  : C.textMid,
+            borderLeft: opt === options[0] ? 'none' : `1.5px solid ${C.border}`,
+            fontFamily: 'inherit', transition: 'all 0.15s',
+          }}>
+          {opt}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function NgCheck({ checked, onChange, label }) {
+  return (
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: 7, cursor: 'pointer', userSelect: 'none' }}>
+      <input type="checkbox" checked={checked} onChange={e => onChange?.(e.target.checked)} style={{ display: 'none' }} />
+      <span style={{ width: 17, height: 17, borderRadius: 5, border: `1.5px solid ${checked ? C.blue : C.border}`, background: checked ? C.blue : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+        {checked && <svg width="10" height="10" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+      </span>
+      <span style={{ fontSize: 13, color: C.textMid, fontWeight: 500 }}>{label}</span>
+    </label>
+  );
+}
+
+function NgSel({ value, onChange, options = [] }) {
+  const { open, setOpen, ref } = useDropdown();
+  const sel = options.find(o => o.value === value);
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={mkTrigger(open)}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.borderColor = C.borderMid; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = C.border; }}>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 14, color: sel ? C.textPrimary : C.textMuted, fontWeight: 500 }}>{sel?.label || 'Select…'}</span>
+        <Chev open={open} />
+      </button>
+      {open && (
+        <div className="slide-down rsp-drop" style={{ ...dropBase, right: 0, minWidth: 155, padding: 5 }}>
+          {options.map((opt, i) => (
+            <button key={i} type="button" onClick={() => { onChange(opt.value); setOpen(false); }}
+              className={`ng-opt ${opt.value === value ? 'sel' : ''}`}
+              style={{ fontSize: 14, color: opt.value === value ? C.blue : C.textBody, fontWeight: opt.value === value ? 600 : 400 }}>
+              {opt.value === value && <svg width="12" height="12" viewBox="0 0 24 24" fill="none" style={{ flexShrink: 0, color: C.blue }}><path d="M20 6L9 17l-5-5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+              <span>{opt.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NgMultiSel({ value = [], onChange, options = [], triggerLabel, icon }) {
+  const { open, setOpen, ref } = useDropdown();
+  const toggle = id => {
+    if (options.find(o => o.id === id)?.required) return;
+    onChange(value.includes(id) ? value.filter(v => v !== id) : [...value, id]);
+  };
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={mkTrigger(open)}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.borderColor = C.borderMid; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = C.border; }}>
+        <span style={{ display: 'flex', alignItems: 'center', flexShrink: 0 }}>{icon}</span>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 14, color: C.textBody, fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{triggerLabel}</span>
+        <Chev open={open} />
+      </button>
+      {open && (
+        <div className="slide-down rsp-drop" style={{ ...dropBase, minWidth: 290 }}>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '10px 14px 8px', borderBottom: `1px solid ${C.border}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: C.textMid, textTransform: 'uppercase', letterSpacing: '0.08em' }}>Charges</span>
+            <div style={{ display: 'flex', gap: 12 }}>
+              <button type="button" style={{ fontSize: 12.5, color: C.textMid, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }} onClick={() => onChange([])}>Clear</button>
+              <button type="button" style={{ fontSize: 12.5, color: C.blue, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit', fontWeight: 600 }} onClick={() => onChange(options.map(o => o.id))}>Select All</button>
+            </div>
+          </div>
+          <div style={{ padding: '6px' }}>
+            {options.map(opt => (
+              <button key={opt.id} type="button" onClick={() => toggle(opt.id)} className="ng-opt" style={{ cursor: opt.required ? 'default' : 'pointer' }}>
+                <span style={{ width: 17, height: 17, borderRadius: 5, border: `1.5px solid ${value.includes(opt.id) ? C.blue : C.border}`, background: value.includes(opt.id) ? C.blue : '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                  {value.includes(opt.id) && <svg width="9" height="9" viewBox="0 0 24 24" fill="none"><path d="M20 6L9 17l-5-5" stroke="#fff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"/></svg>}
+                </span>
+                <span style={{ fontSize: 13.5, color: C.textBody }}>{opt.label}</span>
+                {opt.required && <span style={{ marginLeft: 'auto', fontSize: 11, color: C.textMuted, fontStyle: 'italic' }}>required</span>}
+              </button>
+            ))}
+          </div>
+          <div style={{ padding: '8px 12px 12px', borderTop: `1px solid ${C.border}` }}>
+            <button type="button" onClick={() => setOpen(false)} style={doneBtn}>Done</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NgLoadType({ code, qty, kg, onUpdate, open, setOpen }) {
+  const ref = React.useRef();
+  React.useEffect(() => {
+    const h = e => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener('mousedown', h);
+    return () => document.removeEventListener('mousedown', h);
+  }, [setOpen]);
+
+  const sel   = CONTAINER_TYPES.find(c => c.code === code);
+  const label = sel ? `${sel.code} × ${qty}` : 'Select load type';
+  const numSt = { height: 40, padding: '0 10px', border: `1.5px solid ${C.border}`, borderRadius: 8, fontSize: 13.5, fontFamily: 'inherit', background: C.inputBg, color: C.textPrimary, outline: 'none', width: '100%', textAlign: 'center' };
+
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={mkTrigger(open)}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.borderColor = C.borderMid; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = C.border; }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color: C.textMuted }}><rect x="2" y="6" width="20" height="12" rx="1" stroke="currentColor" strokeWidth="1.8"/><path d="M8 6v12M16 6v12" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 14, color: sel ? C.textPrimary : C.textMuted, fontWeight: sel ? 500 : 400 }}>{label}</span>
+        <Chev open={open} />
+      </button>
+      {open && (
+        <div className="slide-down rsp-drop" style={{ ...dropBase, minWidth: 470 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 78px 160px 70px', gap: 10, padding: '12px 16px 9px', borderBottom: `1px solid ${C.border}` }}>
+            {['Load Type', 'Qty', 'Cargo Weight', ''].map((h, i) => (
+              <span key={i} style={{ fontSize: 10.5, fontWeight: 700, color: C.textMid, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{h}</span>
+            ))}
+          </div>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 78px 160px 70px', gap: 10, padding: '14px 16px', alignItems: 'center' }}>
+            <select value={code} onChange={e => onUpdate(e.target.value, qty, kg)}>
+              <option value="">Select type</option>
+              {CONTAINER_TYPES.map(c => <option key={c.code} value={c.code}>{c.code} — {c.name}</option>)}
+            </select>
+            <input type="number" min="1" max="99" value={qty} onChange={e => onUpdate(code, e.target.value, kg)} style={numSt} />
+            <div style={{ display: 'flex', alignItems: 'center', border: `1.5px solid ${C.border}`, borderRadius: 8, overflow: 'hidden', height: 40 }}>
+              <input type="number" min="1" value={kg} onChange={e => onUpdate(code, qty, e.target.value)} style={{ ...numSt, border: 'none', borderRadius: 0, flex: 1, width: 'auto', textAlign: 'left', padding: '0 8px' }} />
+              <span style={{ padding: '0 10px', background: C.cyanDim, borderLeft: `1px solid rgba(0,194,255,0.2)`, height: '100%', display: 'flex', alignItems: 'center', fontSize: 11, fontWeight: 800, color: '#007DAA', whiteSpace: 'nowrap' }}>KG</span>
+            </div>
+            <div style={{ display: 'flex', gap: 6, justifyContent: 'center' }}>
+              <button type="button" onClick={() => onUpdate(code, Math.max(1, parseInt(qty || 1) - 1).toString(), kg)}
+                style={{ width: 30, height: 30, borderRadius: '50%', border: `1.5px solid ${C.border}`, background: '#fff', cursor: 'pointer', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', color: C.textMid, boxShadow: C.shadow }}>−</button>
+              <button type="button" onClick={() => onUpdate(code, (parseInt(qty || 1) + 1).toString(), kg)}
+                style={{ width: 30, height: 30, borderRadius: '50%', border: `1.5px solid ${C.borderCyan}`, background: C.cyanDim, cursor: 'pointer', fontSize: 17, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#007DAA', boxShadow: C.shadow }}>+</button>
+            </div>
+          </div>
+          <div style={{ padding: '10px 16px 14px', borderTop: `1px solid ${C.border}`, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <button type="button" onClick={() => onUpdate('', '1', '')} style={{ fontSize: 13, color: C.textMid, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'inherit' }}>Reset</button>
+            <button type="button" onClick={() => setOpen(false)} style={{ ...doneBtn, width: 'auto', padding: '9px 28px', height: 'auto', fontSize: 14 }}>Done</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function NgLCL({ wm, cbm, onUpdate }) {
+  const { open, setOpen, ref } = useDropdown();
+  const fieldSt = { width: '100%', height: 44, padding: '0 12px', border: `1.5px solid ${C.border}`, borderRadius: 9, fontSize: 14, fontFamily: 'inherit', background: C.inputBg, color: C.textPrimary, outline: 'none', transition: 'border-color 0.15s' };
+  return (
+    <div ref={ref} style={{ position: 'relative' }}>
+      <button type="button" onClick={() => setOpen(o => !o)} style={mkTrigger(open)}
+        onMouseEnter={e => { if (!open) e.currentTarget.style.borderColor = C.borderMid; }}
+        onMouseLeave={e => { if (!open) e.currentTarget.style.borderColor = C.border; }}>
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color: C.textMuted, flexShrink: 0 }}><rect x="2" y="2" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.8"/><rect x="14" y="2" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.8"/><rect x="2" y="14" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.8"/><rect x="14" y="14" width="8" height="8" rx="1" stroke="currentColor" strokeWidth="1.8"/></svg>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 14, color: C.textPrimary, fontWeight: 500 }}>Charged Wt: {wm} W/M</span>
+        <Chev open={open} />
+      </button>
+      {open && (
+        <div className="slide-down rsp-drop" style={{ ...dropBase, minWidth: 310, padding: 18 }}>
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
+            <div>
+              <Lbl>Volume (CBM)</Lbl>
+              <input type="number" min="0.01" step="0.01" value={cbm} onChange={e => onUpdate(wm, e.target.value)} style={fieldSt} />
+            </div>
+            <div>
+              <Lbl>Weight (W/M)</Lbl>
+              <input type="number" min="0.01" step="0.01" value={wm} onChange={e => onUpdate(e.target.value, cbm)} style={fieldSt} />
+            </div>
+          </div>
+          <button type="button" onClick={() => setOpen(false)} style={doneBtn}>Done</button>
+        </div>
+      )}
+    </div>
+  );
+}
