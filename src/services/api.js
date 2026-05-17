@@ -76,7 +76,8 @@ export const verifyGst    = (d) => api.post('/kyc/verify-gst', d);
 /* ── Rates ── */
 export const searchRates   = (d) => api.post('/rates/search', d);
 export const getRateById   = (id) => api.get(`/rates/${id}`);
-export const searchPorts   = (p)  => api.get('/rates/ports/search', { params: p });
+export const searchPorts = ({ q = '', type = 'sea', limit = 100 } = {}) =>
+  api.get('/rates/ports/search', { params: { q, type, limit } });
 export const getLoadTypes  = ()   => api.get('/rates/meta/load-types');
 export const sendRateEmail = (d)  => api.post('/rates/send-email', d);
 
