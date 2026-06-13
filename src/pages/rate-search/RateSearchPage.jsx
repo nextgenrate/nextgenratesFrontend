@@ -606,7 +606,7 @@ export default function RateSearchPage() {
           </div>
 
           {/* Recent Searches */}
-          <section style={{ marginTop:36 }}>
+          {/* <section style={{ marginTop:36 }}>
             <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', marginBottom:16 }}>
               <div style={{ display:'flex', alignItems:'center', gap:9, fontSize:17, fontWeight:700, color:C.textPrimary }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style={{ color:C.textMid }}><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 7v5l3 3" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
@@ -669,7 +669,7 @@ export default function RateSearchPage() {
                 ))}
               </div>
             )}
-          </section>
+          </section> */}
         </div>
       </div>
     </AppLayout>
