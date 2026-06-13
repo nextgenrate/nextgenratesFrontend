@@ -65,28 +65,58 @@ export function CreateBookingPage() {
   const [error,   setError]   = useState('');
   const [success, setSuccess] = useState(null);
 
-  const [form, setForm] = useState({
-    mode: rate?.mode||'SEA-FCL', originPort:origin?.code||rate?.originPort||'',
-    destinationPort:dest?.code||rate?.destinationPort||'', shippingLine:rate?.shippingLine||'',
-    containerType:container||rate?.containerType||'40GP', cargoType:rate?.cargoType||'FAK',
-    commodity:'', hsCode:'', incoterms:'FOB',
-    sailingDate:rate?.sailingDate?new Date(rate.sailingDate).toISOString().slice(0,10):'',
-    totalAmount:rate?.totalUsd||rate?.freightRateUsd||'', currency:'USD', customerNotes:'',
-    pickupAddress:{   company:user?.company?.name||'', contact:user?.name||'', email:user?.officialEmail||user?.email||'', phone:user?.phone||'', street:'', city:'', country:'', postalCode:'' },
-    deliveryAddress:{ company:'', contact:'', email:'', phone:'', street:'', city:'', country:'', postalCode:'' },
-  });
+const [form, setForm] = useState({
+  mode: rate?._airRate || rate?.mode === 'AIR' ? 'AIR' : (rate?.mode || 'SEA-FCL'),
+  
+  // ← Fix these two lines with multiple fallbacks:
+  originPort:      origin?.code || rate?.originPort || location.state?.originPort || '',
+  destinationPort: dest?.code   || rate?.destinationPort || location.state?.destinationPort || '',
+  
+  shippingLine: rate?._airRate ? (rate.carrier || '') : (rate?.shippingLine || ''),
+  containerType: (rate?._airRate || rate?.mode === 'AIR') ? '' : (container || rate?.containerType || '40GP'),
+  cargoType:    rate?.cargoType || 'FAK',
+  commodity: '', hsCode: '', incoterms: 'FOB',
+  sailingDate: rate?.sailingDate ? new Date(rate.sailingDate).toISOString().slice(0,10) : '',
+  totalAmount: (rate?._airRate || rate?.mode === 'AIR')
+    ? (rate?.quote?.freightCost || '')
+    : (rate?.totalUsd || rate?.freightRateUsd || ''),
+  currency: 'USD', customerNotes: '',
+  actualKg:     location.state?.actualKg  || '',
+  lengthCm:     location.state?.lengthCm  || '',
+  widthCm:      location.state?.widthCm   || '',
+  heightCm:     location.state?.heightCm  || '',
+  pieces:       location.state?.pieces    || 1,
+  chargeableKg: rate?.quote?.cw || '',
+  pickupAddress:   { company:user?.company?.name||'', contact:user?.name||'', email:user?.officialEmail||user?.email||'', phone:user?.phone||'', street:'', city:'', country:'', postalCode:'' },
+  deliveryAddress: { company:'', contact:'', email:'', phone:'', street:'', city:'', country:'', postalCode:'' },
+});
   const set    = k => e => setForm(f=>({...f,[k]:e.target.value}));
   const setAddr= (w,k) => e => setForm(f=>({...f,[w]:{...f[w],[k]:e.target.value}}));
 
-  const submit = async() => {
-    setError(''); setLoading(true);
-    try {
-      const res = await api.createBooking({ ...form, rate:rate?._id, rateSnapshot:rate });
-      setSuccess(res.data?.booking||{ bookingRef:'NGR-'+Date.now().toString(36).toUpperCase() });
-      setStep(3);
-    } catch(err) { setError(err.message||'Submission failed. Please try again.'); }
-    finally { setLoading(false); }
-  };
+ const submit = async () => {
+  setError(''); setLoading(true);
+  try {
+    const payload = {
+      ...form,
+      rate:         rate?._id,
+      rateSnapshot: rate,
+      // For AIR: clear sea-specific fields, use carrier as shippingLine
+      containerType: form.mode === 'AIR' ? undefined : form.containerType,
+      incoterms:     form.mode === 'AIR' ? undefined : form.incoterms,
+      // Ensure numbers not strings
+      actualKg:     form.actualKg     ? parseFloat(form.actualKg)     : undefined,
+      lengthCm:     form.lengthCm     ? parseFloat(form.lengthCm)     : undefined,
+      widthCm:      form.widthCm      ? parseFloat(form.widthCm)      : undefined,
+      heightCm:     form.heightCm     ? parseFloat(form.heightCm)     : undefined,
+      pieces:       form.pieces       ? parseInt(form.pieces)         : undefined,
+      chargeableKg: form.chargeableKg ? parseFloat(form.chargeableKg) : undefined,
+    };
+    const res = await api.createBooking(payload);
+  setSuccess(res.data?.booking || res.booking || { bookingRef: 'NGR-' + Date.now().toString(36).toUpperCase() });
+    setStep(3);
+  } catch(err) { setError(err.message || 'Submission failed. Please try again.'); }
+  finally { setLoading(false); }
+};
 
   const ADDR = [['Company Name','company'],['Contact Person','contact'],['Email','email'],['Phone','phone'],['Street Address','street'],['City','city'],['Country','country'],['Postal Code','postalCode']];
 
@@ -101,14 +131,29 @@ export function CreateBookingPage() {
           <h2 style={{ fontSize:26, fontWeight:900, color:C.textPrimary, marginBottom:8 }}>Booking Submitted!</h2>
           <div style={{ fontFamily:'ui-monospace,monospace', fontWeight:900, fontSize:16, color:C.blue, marginBottom:14, padding:'6px 16px', background:C.blueDim, borderRadius:8, display:'inline-block' }}>{success.bookingRef}</div>
           <p style={{ fontSize:14, color:C.textBody, lineHeight:1.7, marginBottom:26 }}>Your booking request has been received. Our team will review and confirm within <strong>24–48 business hours</strong>.</p>
-          <div style={{ padding:'16px 18px', background:C.amberBg, border:`1px solid ${C.amberBorder}`, borderRadius:12, marginBottom:28, textAlign:'left' }}>
-            {[['Route',`${form.originPort} → ${form.destinationPort}`],['Mode',form.mode],['Container',form.containerType],['Sailing',fmtDateUS(form.sailingDate)]].map(([l,v])=>(
-              <div key={l} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'5px 0', borderBottom:'1px solid #FDE68A' }}>
-                <span style={{ color:'#78350F', fontWeight:600 }}>{l}</span>
-                <span style={{ color:C.textPrimary, fontWeight:700 }}>{v}</span>
-              </div>
-            ))}
-          </div>
+      
+<div style={{ padding:'16px 18px', background:C.amberBg, border:`1px solid ${C.amberBorder}`, borderRadius:12, marginBottom:28, textAlign:'left' }}>
+  {(form.mode === 'AIR'
+    ? [
+        ['Route',           `${form.originPort} → ${form.destinationPort}`],
+        ['Mode',            '✈ Air Freight'],
+        ['Carrier',         form.shippingLine || '—'],
+        ['Chargeable Wt',   form.chargeableKg ? `${form.chargeableKg} KG` : '—'],
+        ['Est. Cost',       form.totalAmount   ? `USD ${Number(form.totalAmount).toFixed(2)}` : '—'],
+      ]
+    : [
+        ['Route',     `${form.originPort} → ${form.destinationPort}`],
+        ['Mode',      form.mode],
+        ['Container', form.containerType],
+        ['Sailing',   fmtDateUS(form.sailingDate)],
+      ]
+  ).map(([l, v]) => (
+    <div key={l} style={{ display:'flex', justifyContent:'space-between', fontSize:13, padding:'5px 0', borderBottom:'1px solid #FDE68A' }}>
+      <span style={{ color:'#78350F', fontWeight:600 }}>{l}</span>
+      <span style={{ color:C.textPrimary, fontWeight:700 }}>{v}</span>
+    </div>
+  ))}
+</div>
           <div style={{ display:'flex', gap:12, justifyContent:'center' }}>
             <button onClick={()=>navigate('/bookings')} style={{ padding:'11px 24px', background:C.panel, color:C.textBody, border:`1.5px solid ${C.border}`, borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>View Bookings</button>
             <button onClick={()=>navigate('/rate-search')} style={{ padding:'11px 24px', background:C.btnGrad, color:'#fff', border:'none', borderRadius:10, fontSize:14, fontWeight:700, cursor:'pointer', fontFamily:'inherit', boxShadow:'0 4px 14px rgba(0,194,255,0.28)' }}>Search More Rates</button>
@@ -129,7 +174,14 @@ export function CreateBookingPage() {
             <button onClick={()=>navigate(-1)} style={{ background:C.panel, border:`1.5px solid ${C.border}`, borderRadius:9, cursor:'pointer', padding:'8px 16px', fontSize:13.5, fontWeight:600, color:C.textBody, fontFamily:'inherit', transition:'all 0.15s' }}>← Back</button>
             <div>
               <h1 style={{ fontSize:22, fontWeight:900, color:C.textPrimary, lineHeight:1 }}>Create Booking</h1>
-              <p style={{ fontSize:12.5, color:C.textMid, marginTop:3 }}>{rate?`${rate.shippingLine} · ${rate.originPort} → ${rate.destinationPort}`:'New booking request'}</p>
+            {/* Replace this line in the header: */}
+<p style={{ fontSize:12.5, color:C.textMid, marginTop:3 }}>
+  {rate
+    ? rate._airRate
+      ? `✈ ${rate.carrier} · ${rate.originPort} → ${rate.destinationPort} · AIR`
+      : `${rate.shippingLine} · ${rate.originPort} → ${rate.destinationPort}`
+    : 'New booking request'}
+</p>
             </div>
           </div>
 
@@ -149,21 +201,50 @@ export function CreateBookingPage() {
           </div>
 
           {/* Rate summary */}
-          {rate&&(
-            <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px 20px', marginBottom:18, display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:C.shadow }}>
-              <div style={{ display:'flex', alignItems:'center', gap:12 }}>
-                <div style={{ width:44, height:44, borderRadius:12, background:C.navy, display:'flex', alignItems:'center', justifyContent:'center', color:'#fff', fontSize:11.5, fontWeight:900 }}>{(rate.shippingLineCode||rate.shippingLine||'?').slice(0,4)}</div>
-                <div>
-                  <div style={{ fontSize:14, fontWeight:700, color:C.textPrimary }}>{rate.shippingLine}</div>
-                  <div style={{ fontSize:12, color:C.textMid, fontFamily:'ui-monospace,monospace' }}>{rate.originPort} → {rate.destinationPort} · {rate.containerType} · {rate.transitTimeDays}d transit</div>
-                </div>
-              </div>
-              <div style={{ textAlign:'right' }}>
-                <div style={{ fontSize:10.5, color:C.textMuted, fontWeight:600, textTransform:'uppercase' }}>Total Rate</div>
-                <div style={{ fontSize:20, fontWeight:900, color:C.textPrimary, fontFamily:'ui-monospace,monospace' }}>USD {(rate.totalUsd||rate.freightRateUsd||0).toLocaleString('en-US',{minimumFractionDigits:2})}</div>
-              </div>
-            </div>
-          )}
+          {rate && (
+  <div style={{ background:C.panel, border:`1px solid ${C.border}`, borderRadius:12, padding:'14px 20px', marginBottom:18, display:'flex', justifyContent:'space-between', alignItems:'center', boxShadow:C.shadow }}>
+    <div style={{ display:'flex', alignItems:'center', gap:12 }}>
+      <div style={{ width:44, height:44, borderRadius:12,
+        background: rate._airRate ? '#EEF3FF' : C.navy,
+        display:'flex', alignItems:'center', justifyContent:'center',
+        color: rate._airRate ? C.navy : '#fff', fontSize:rate._airRate ? 20 : 11.5, fontWeight:900 }}>
+        {rate._airRate ? '✈' : (rate.shippingLineCode||rate.shippingLine||'?').slice(0,4)}
+      </div>
+      <div>
+        <div style={{ fontSize:14, fontWeight:700, color:C.textPrimary }}>
+          {rate._airRate ? rate.carrier : rate.shippingLine}
+        </div>
+        <div style={{ fontSize:12, color:C.textMid, fontFamily:'ui-monospace,monospace' }}>
+          {rate.originPort} → {rate.destinationPort}
+          {rate._airRate
+            ? ` · ✈ AIR · ${rate.cargoType || 'FAK'}`
+            : ` · ${rate.containerType} · ${rate.transitTimeDays}d transit`}
+        </div>
+        {/* Air: show CW calculation */}
+        {rate._airRate && rate.quote && (
+          <div style={{ fontSize:11, color:C.blue, marginTop:2, fontWeight:600 }}>
+            CW: {rate.quote.cw} KG · Slab: {rate.quote.slab?.name} · {rate.quote.slab?.ratePerKg} USD/KG
+          </div>
+        )}
+      </div>
+    </div>
+    <div style={{ textAlign:'right' }}>
+      <div style={{ fontSize:10.5, color:C.textMuted, fontWeight:600, textTransform:'uppercase' }}>
+        {rate._airRate ? 'Est. Freight Cost' : 'Total Rate'}
+      </div>
+      <div style={{ fontSize:20, fontWeight:900, color:C.textPrimary, fontFamily:'ui-monospace,monospace' }}>
+        USD {rate._airRate
+          ? (rate.quote?.freightCost || 0).toLocaleString('en-US', {minimumFractionDigits:2})
+          : (rate.totalUsd||rate.freightRateUsd||0).toLocaleString('en-US', {minimumFractionDigits:2})}
+      </div>
+      {rate._airRate && (
+        <div style={{ fontSize:10, color:C.textMuted, marginTop:2 }}>
+          + surcharges (FSC, SSC) as applicable
+        </div>
+      )}
+    </div>
+  </div>
+)}
 
           {error&&<div style={{ padding:'13px 16px', background:C.redBg, border:`1px solid ${C.redBorder}`, borderRadius:10, fontSize:13.5, color:C.red, marginBottom:18 }}>{error}</div>}
 
@@ -183,6 +264,77 @@ export function CreateBookingPage() {
                   <FldB label="Commodity" full><input value={form.commodity} onChange={set('commodity')} placeholder="e.g. Auto Parts, Textiles, Electronics" style={iStB}/></FldB>
                   <FldB label="HS Code"><input value={form.hsCode} onChange={set('hsCode')} placeholder="e.g. 8703.10" style={{ ...iStB, fontFamily:'ui-monospace,monospace' }}/></FldB>
                   <FldB label="Estimated Amount (USD)"><input type="number" value={form.totalAmount} onChange={set('totalAmount')} placeholder="0.00" style={{ ...iStB, fontFamily:'ui-monospace,monospace' }}/></FldB>
+                  {/* Air cargo details — only shown for AIR bookings */}
+{form.mode === 'AIR' && (
+  <FldB label="Air Cargo Details" full>
+    <div style={{ background:'#EEF3FF', border:`1px solid ${C.borderMid}`, borderRadius:10, padding:'14px 16px' }}>
+      <div style={{ display:'grid', gridTemplateColumns:'repeat(4,1fr)', gap:10, marginBottom:10 }}>
+        {[
+          ['Actual Weight (KG)', 'actualKg'],
+          ['Length (CM)',        'lengthCm'],
+          ['Width (CM)',         'widthCm'],
+          ['Height (CM)',        'heightCm'],
+        ].map(([lbl, key]) => (
+          <div key={key}>
+            <div style={{ fontSize:11, fontWeight:600, color:C.textMid, marginBottom:4 }}>{lbl}</div>
+            <input type="number" value={form[key]||''} onChange={set(key)}
+              placeholder="0" style={{ ...iStB, height:40, fontSize:13 }}/>
+          </div>
+        ))}
+      </div>
+      <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 1fr', gap:10 }}>
+        <div>
+          <div style={{ fontSize:11, fontWeight:600, color:C.textMid, marginBottom:4 }}>No. of Pieces</div>
+          <input type="number" value={form.pieces||1} onChange={set('pieces')}
+            style={{ ...iStB, height:40, fontSize:13 }}/>
+        </div>
+        {/* Auto-calculated CW display */}
+        <div style={{ gridColumn:'2/-1', display:'flex', alignItems:'center', gap:14,
+          background:'#FEF08A', borderRadius:8, padding:'8px 14px', marginTop:2 }}>
+          {(() => {
+            const vw = form.lengthCm && form.widthCm && form.heightCm
+              ? Math.round(parseFloat(form.lengthCm)*parseFloat(form.widthCm)*parseFloat(form.heightCm)/6000*100)/100 : 0;
+            const totalVW = Math.round(vw * (parseInt(form.pieces)||1) * 100)/100;
+            const totalAW = Math.round(parseFloat(form.actualKg||0) * (parseInt(form.pieces)||1) * 100)/100;
+            const cw = Math.max(totalVW, totalAW);
+            return (
+              <>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, color:'#92400E', textTransform:'uppercase' }}>Vol. Weight</div>
+                  <div style={{ fontSize:13, fontWeight:800, color:'#78350F', fontFamily:'ui-monospace,monospace' }}>{totalVW} KG</div>
+                </div>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, color:'#92400E', textTransform:'uppercase' }}>Act. Weight</div>
+                  <div style={{ fontSize:13, fontWeight:800, color:'#78350F', fontFamily:'ui-monospace,monospace' }}>{totalAW} KG</div>
+                </div>
+                <div>
+                  <div style={{ fontSize:10, fontWeight:700, color:'#92400E', textTransform:'uppercase' }}>Chargeable ←</div>
+                  <div style={{ fontSize:15, fontWeight:900, color:'#92400E', fontFamily:'ui-monospace,monospace' }}>{cw} KG</div>
+                </div>
+              </>
+            );
+          })()}
+        </div>
+      </div>
+    </div>
+  </FldB>
+)}
+
+{/* Replace the Container Type FldB: */}
+{form.mode !== 'AIR' && (
+  <FldB label="Container Type">
+    <select value={form.containerType} onChange={set('containerType')} style={sStB}>
+      {CONTAINERS.map(c=><option key={c}>{c}</option>)}
+    </select>
+  </FldB>
+)}
+{form.mode !== 'AIR' && (
+  <FldB label="Incoterms">
+    <select value={form.incoterms} onChange={set('incoterms')} style={sStB}>
+      {INCOTERMS.map(i=><option key={i}>{i}</option>)}
+    </select>
+  </FldB>
+)}
                   <FldB label="Notes / Special Requirements" full><textarea value={form.customerNotes} onChange={set('customerNotes')} rows={3} placeholder="Hazardous goods details, packing instructions…" style={{ ...iStB, height:'auto', padding:'10px 13px', resize:'vertical' }}/></FldB>
                 </GridB>
               </CardB>
