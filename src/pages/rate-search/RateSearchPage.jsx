@@ -1,9 +1,9 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
 import AppLayout from '../../components/layout/AppLayout';
 import { CURRENCIES, CHARGE_OPTIONS } from '../../data/mockData';
 import { searchPorts, getLoadTypes } from '../../services/api';
 import api from '../../services/api';
+import { useNavigate, useLocation } from 'react-router-dom';
 
 const C = {
   pageBg: '#F0F4FB', panel: '#FFFFFF', inputBg: '#F5F8FF', inputFocus: '#FFFFFF', hover: '#EEF3FF',
@@ -322,6 +322,7 @@ const DEST_DEFAULT   = { FCL:'CY', LCL:'CFS', AIR:null };
 ══════════════════════════════════════════════════════════════ */
 export default function RateSearchPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [form, setForm]           = useState(DEFAULT_FORM);
   const [loadOpen, setLoadOpen]   = useState(false);
   const [formError, setFormError] = useState('');
@@ -349,6 +350,26 @@ export default function RateSearchPage() {
     };
     init();
   }, []);
+
+  // ── Prefill from "Edit Search" ──────────────────────────────
+useEffect(() => {
+  const prefill = location.state?.prefill;
+  if (!prefill) return;
+
+  setForm(f => ({
+    ...f,
+    ...(prefill.origin        && { origin: prefill.origin }),
+    ...(prefill.dest          && { dest: prefill.dest }),
+    ...(prefill.tab           && { tab: prefill.tab }),
+    ...(prefill.containerCode && { containerCode: prefill.containerCode }),
+    // reset origin/dest types to match the tab
+    originType: ORIGIN_DEFAULT[prefill.tab] || 'CY',
+    destType:   DEST_DEFAULT[prefill.tab]   || 'CY',
+  }));
+
+  // Clear the navigation state so refresh doesn't re-prefill
+  window.history.replaceState({}, '');
+}, []); // runs once on mount
 
   const set = k => v => setForm(f => ({ ...f, [k]: v }));
   const changeTab = tab => {
