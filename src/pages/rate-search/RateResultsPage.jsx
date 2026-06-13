@@ -625,20 +625,130 @@ export default function RateResultsPage() {
   const [detailsModal,setDetailsModal]=useState(null);
   const [matchModal,  setMatchModal  ]=useState(null);
   const [emailModal,  setEmailModal  ]=useState(null);
+  const [cargoCalc, setCargoCalc] = useState(null); // ← ADD THIS
 
-  const loadRates = useCallback(async()=>{
-    setLoading(true);
-    try {
-      const res = await api.searchRates({ mode, originPort:origin.code, destinationPort:dest.code, containerType:filters.container||containerCode||undefined, sortBy, page, limit:20, filterCarrier:filters.carrier||undefined, filterDirect:filters.direct||undefined, filterCargo:filters.cargo||undefined });
-      setRates(res.data.rates||[]); setPagination(res.data.pagination||{}); setFilterOptions(res.data.filters||{});
-    } catch {
-      setRates(MOCK_RATES); setPagination({ total:MOCK_RATES.length, pages:1, page:1, limit:20 }); setFilterOptions({ carriers:['Maersk','Hapag-Lloyd','MSC'], cargoTypes:['FAK'], containerTypes:['40GP','20GP','40HC'] });
-    } finally { setLoading(false); }
-  },[mode,origin.code,dest.code,filters,sortBy,page,containerCode]);
+const loadRates = useCallback(async () => {
+  setLoading(true);
+  try {
+    let res;
+    if (mode === 'AIR') {
+      res = await api.searchAirRates({
+        originPort:      origin.code,
+        destinationPort: dest.code,
+        actualKg:        parseFloat(s.actualKg  || 50),
+        lengthCm:        parseFloat(s.lengthCm  || 0),
+        widthCm:         parseFloat(s.widthCm   || 0),
+        heightCm:        parseFloat(s.heightCm  || 0),
+        pieces:          parseInt(s.pieces      || 1),
+        page,
+        limit: 20,
+      });
+      setRates(res.data?.rates || []);
+      if (res.data?.cargo) setCargoCalc(res.data.cargo);
+      setPagination(res.data?.pagination || {});
+      setFilterOptions({ carriers: [...new Set((res.data?.rates||[]).map(r=>r.carrier).filter(Boolean))] });
+    } else {
+      res = await api.searchRates({
+        mode, originPort: origin.code, destinationPort: dest.code,
+        containerType: filters.container || containerCode || undefined,
+        sortBy, page, limit: 20,
+        filterCarrier: filters.carrier || undefined,
+        filterDirect:  filters.direct  || undefined,
+        filterCargo:   filters.cargo   || undefined,
+      });
+      setRates(res.data?.rates || []);
+      setPagination(res.data?.pagination || {});
+      setFilterOptions(res.data?.filters || {});
+    }
+  } catch {
+    setRates(MOCK_RATES);
+    setPagination({ total: MOCK_RATES.length, pages: 1, page: 1, limit: 20 });
+  } finally {
+    setLoading(false);
+  }
+}, [mode, origin.code, dest.code, filters, sortBy, page, containerCode,
+    s.actualKg, s.lengthCm, s.widthCm, s.heightCm, s.pieces]); // ← explicit deps
 
   useEffect(()=>{ loadRates(); },[loadRates]);
-  const handleBook = r => navigate('/bookings/create',{ state:{ rate:r, origin, dest, container:r.containerType||containerCode } });
+  const handleBook = r => navigate('/bookings/create', {
+  state: {
+    rate:      r,
+    origin,
+    dest,
+    container: r.containerType || containerCode,
+    // Pass air cargo dimensions so CreateBookingPage can pre-fill them
+    actualKg:  s.actualKg,
+    lengthCm:  s.lengthCm,
+    widthCm:   s.widthCm,
+    heightCm:  s.heightCm,
+    pieces:    s.pieces,
+  }
+});
 
+
+  function AirRateCard({ rate, onBook, onMatchRates }) {
+  const quote = rate.quote;
+  if (!quote) return null;
+
+  return (
+    <div className="ng-card-hover" style={{ background:C.panel, border:`1px solid ${C.border}`,
+      borderRadius:12, overflow:'hidden', marginBottom:10, boxShadow:C.shadow }}>
+      <div style={{ height:2, background:'linear-gradient(90deg,#1540C0,#00C2FF)', opacity:0.85 }}/>
+      <div style={{ display:'grid', gridTemplateColumns:'200px 1fr auto', minHeight:80 }}>
+
+        {/* Carrier */}
+        <div style={{ padding:'12px 14px', borderRight:`1px solid ${C.border}`, display:'flex', flexDirection:'column', gap:6 }}>
+          <div style={{ fontSize:9, fontWeight:700, color:C.textMuted, textTransform:'uppercase' }}>✈ AIR FREIGHT</div>
+          <div style={{ fontSize:13, fontWeight:800, color:C.textPrimary }}>{rate.carrier}</div>
+          <div style={{ fontSize:10, color:C.textMuted }}>{rate.cargoType} · VW÷{rate.vwDivisor||6000}</div>
+        </div>
+
+        {/* Slab info */}
+        <div style={{ padding:'12px 16px', display:'flex', flexDirection:'column', gap:6, justifyContent:'center' }}>
+          <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+            {[
+              ['Route',           `${rate.originPort} → ${rate.destinationPort}`],
+              ['Matched Slab',    quote.slab?.name || '—'],
+              ['Rate',            `USD ${quote.slab?.ratePerKg}/KG`],
+              ['Min Charge',      `USD ${quote.slab?.minCharge}`],
+              ['Transit',         rate.transitTime || '—'],
+              ['Chargeable Wt',   `${quote.cw} KG`],
+            ].map(([l, v]) => (
+              <div key={l}>
+                <div style={{ fontSize:9, fontWeight:700, color:C.textMuted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:2 }}>{l}</div>
+                <div style={{ fontSize:12, fontWeight:700, color:C.textPrimary, fontFamily:'ui-monospace,monospace' }}>{v}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Price + actions */}
+        <div style={{ padding:'12px 16px', borderLeft:`1px solid ${C.border}`, display:'flex',
+          flexDirection:'column', justifyContent:'space-between', minWidth:200 }}>
+          <div>
+            <div style={{ fontSize:9, fontWeight:700, color:C.textMuted, textTransform:'uppercase', marginBottom:2 }}>Est. Freight Cost</div>
+            <div style={{ fontSize:20, fontWeight:900, color:C.navy, fontFamily:'ui-monospace,monospace' }}>
+              USD {quote.freightCost?.toLocaleString('en-US', {minimumFractionDigits:2})}
+            </div>
+            <div style={{ fontSize:9.5, color:C.textMuted, marginTop:2 }}>
+              MAX({quote.cw} KG × {quote.slab?.ratePerKg}, min {quote.slab?.minCharge})
+            </div>
+          </div>
+          <div style={{ display:'flex', gap:6, marginTop:8 }}>
+            <button onClick={()=>onMatchRates(rate)} className="ng-btn-sec"
+              style={{ flex:1, padding:'7px 0', borderRadius:7, fontSize:11.5, fontWeight:700, cursor:'pointer', fontFamily:'inherit' }}>
+              + Match
+            </button>
+            <button onClick={()=>onBook(rate)} className="ng-btn-coral"
+              style={{ flex:1, padding:'7px 0', borderRadius:7, fontSize:11.5, cursor:'pointer', fontFamily:'inherit' }}>
+              Book Now
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
   return (
     <AppLayout>
       <style>{`
@@ -724,8 +834,33 @@ export default function RateResultsPage() {
             </div>
           </div>
         </div>
+        {/* Air cargo summary — show when AIR mode and cargo is calculated */}
+{mode === 'AIR' && cargoCalc && (
+  <div style={{ background:'#EEF3FF', border:`1px solid ${C.borderMid}`, borderRadius:10,
+    padding:'10px 16px', marginBottom:14, display:'flex', gap:20, flexWrap:'wrap', alignItems:'center' }}>
+    <div style={{ fontSize:11, fontWeight:800, color:C.navy, textTransform:'uppercase', letterSpacing:'0.06em' }}>
+      ✈ Cargo Calculation
+    </div>
+    {[
+      ['Actual Weight', `${cargoCalc.totalAW} KG`],
+      ['Volume Weight', `${cargoCalc.totalVW} KG`],
+      ['Chargeable Weight', `${cargoCalc.cw} KG`],
+      ['VW Divisor', `÷ ${cargoCalc.divisor}`],
+    ].map(([l, v]) => (
+      <div key={l}>
+        <div style={{ fontSize:9, fontWeight:700, color:C.textMuted, textTransform:'uppercase', letterSpacing:'0.06em' }}>{l}</div>
+        <div style={{ fontSize:13, fontWeight:800, color:C.navy, fontFamily:'ui-monospace,monospace' }}>{v}</div>
+      </div>
+    ))}
+    <div style={{ marginLeft:'auto', padding:'5px 12px', background:'#FEF08A', borderRadius:7,
+      fontSize:11, fontWeight:700, color:'#92400E' }}>
+      CW = MAX(Actual, Volume Weight)
+    </div>
+  </div>
+)}
 
         <div style={{ display:'flex', gap:16, alignItems:'flex-start' }}>
+          
           <FilterSidebar filters={filters} onChange={setFilters} filterOptions={filterOptions} loading={loading}/>
           <div style={{ flex:1, minWidth:0 }}>
             {loading ? (
@@ -742,11 +877,13 @@ export default function RateResultsPage() {
               </div>
             ) : (
               <>
-                {rates.map(r=>(
-                  <RateCard key={r._id||r.id} rate={r}
-                    onViewDetails={setDetailsModal} onBook={handleBook}
-                    onMatchRates={setMatchModal} onEmail={setEmailModal}/>
-                ))}
+                {rates.map(r => (
+  mode === 'AIR'
+    ? <AirRateCard key={r._id} rate={r} onBook={handleBook} onMatchRates={setMatchModal}/>
+    : <RateCard key={r._id||r.id} rate={r}
+        onViewDetails={setDetailsModal} onBook={handleBook}
+        onMatchRates={setMatchModal} onEmail={setEmailModal}/>
+))}
                 {pagination.pages>1&&(
                   <div style={{ display:'flex', justifyContent:'center', alignItems:'center', gap:8, marginTop:18 }}>
                     <button disabled={page===1} onClick={()=>setPage(p=>p-1)} className="ng-btn-sec"
