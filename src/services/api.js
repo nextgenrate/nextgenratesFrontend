@@ -92,5 +92,7 @@ export const getEnquiries  = (p) => api.get('/bookings/enquiries', { params: p }
 
 /* ── Profile ── */
 export const updateProfile = (d) => api.put('/auth/profile', d);
+export const searchAirRates = (d) => api.post('/rates/air/search', d);
+
 
 export default api;
