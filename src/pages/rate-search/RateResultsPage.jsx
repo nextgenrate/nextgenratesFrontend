@@ -241,10 +241,45 @@ function DetailsModal({ rate, onClose, onBook }) {
 
 // ─── Match Rates Modal ────────────────────────────────────────
 function MatchRatesModal({ rate, onClose }) {
-  const [form, setForm] = useState({ containerType:rate?.containerType||'40GP', targetRate:'', currency:'USD', cargoWt:'18000', liner:'', sailingDate:'', freeDays:'7', notes:'' });
-  const [done, setDone] = useState(false);
-  const set = k => e => setForm(f=>({...f,[k]:e.target.value}));
-  const iSt = { width:'100%', height:38, padding:'0 10px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:12.5, color:C.textPrimary, outline:'none', fontFamily:'inherit', background:C.inputBg, boxSizing:'border-box', transition:'border-color 0.15s' };
+  const [form, setForm] = useState({
+    containerType: rate?.containerType || '40GP',
+    targetRate: '', currency: 'USD', cargoWt: '18000',
+    liner: '', sailingDate: '', freeDays: '7', notes: ''
+  });
+  const [done, setDone]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState('');
+
+  const set = k => e => setForm(f => ({ ...f, [k]: e.target.value }));
+
+  // ← NEW: actually calls the API
+  const handleSend = async () => {
+    if (!form.targetRate) { setError('Please enter a target rate'); return; }
+    setLoading(true); setError('');
+    try {
+      await api.createEnquiry({
+        mode:                  rate?.mode || 'SEA-FCL',
+        originPort:            rate?.originPort || '',
+        destinationPort:       rate?.destinationPort || '',
+        containerType:         form.containerType,
+        targetRate:            parseFloat(form.targetRate),
+        currency:              form.currency,
+        cargoWeight:           parseFloat(form.cargoWt),
+        weightUnit:            'KG',
+        preferredLiner:        form.liner || undefined,
+        preferredSailingDate:  form.sailingDate || undefined,
+        freeDays:              parseInt(form.freeDays) || 7,
+        notes:                 form.notes || undefined,
+      });
+      setDone(true);
+    } catch (err) {
+      setError(err.message || 'Failed to send request. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const iSt = { width:'100%', height:38, padding:'0 10px', border:`1.5px solid ${C.border}`, borderRadius:8, fontSize:12.5, color:C.textPrimary, outline:'none', fontFamily:'inherit', background:C.inputBg, boxSizing:'border-box' };
   const sSt = { ...iSt, cursor:'pointer', appearance:'none', WebkitAppearance:'none', backgroundImage:`url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='11' height='11' viewBox='0 0 24 24' fill='none' stroke='%238FA3C8' stroke-width='2.5' stroke-linecap='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E")`, backgroundRepeat:'no-repeat', backgroundPosition:'right 10px center', paddingRight:28 };
 
   if (done) return (
@@ -254,7 +289,10 @@ function MatchRatesModal({ rate, onClose }) {
           <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.5" strokeLinecap="round"><polyline points="20 6 9 17 4 12"/></svg>
         </div>
         <div style={{ fontSize:16, fontWeight:800, color:C.textPrimary, marginBottom:6 }}>Request Sent!</div>
-        <div style={{ fontSize:12.5, color:C.textMid, marginBottom:20, lineHeight:1.6 }}>Our team will review your target rate and respond within 24 hours.</div>
+        <div style={{ fontSize:12.5, color:C.textMid, marginBottom:20, lineHeight:1.6 }}>
+          Our team will review your target rate and respond within <strong>24 hours</strong>.<br/>
+          Check your email for confirmation.
+        </div>
         <button onClick={onClose} className="ng-btn-primary" style={{ padding:'10px 28px', borderRadius:9, fontSize:13, cursor:'pointer', fontFamily:'inherit' }}>Done</button>
       </div>
     </div>
@@ -262,39 +300,56 @@ function MatchRatesModal({ rate, onClose }) {
 
   return (
     <div style={{ position:'fixed', inset:0, background:'rgba(11,29,94,0.45)', backdropFilter:'blur(4px)', zIndex:1001, display:'flex', alignItems:'center', justifyContent:'center', padding:20 }}
-      onClick={e=>e.target===e.currentTarget&&onClose()}>
+      onClick={e => e.target === e.currentTarget && onClose()}>
       <div style={{ background:C.panel, borderRadius:16, width:'100%', maxWidth:520, boxShadow:C.shadowLg, border:`1px solid ${C.border}` }}>
         <div style={{ padding:'14px 20px', borderBottom:`1px solid ${C.border}`, display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-          <div style={{ fontSize:14.5, fontWeight:800, color:C.textPrimary }}>Request Better Rate</div>
+          <div>
+            <div style={{ fontSize:14.5, fontWeight:800, color:C.textPrimary }}>Request Better Rate</div>
+            {rate && <div style={{ fontSize:11, color:C.textMid, marginTop:2, fontFamily:'ui-monospace,monospace' }}>{rate.originPort} → {rate.destinationPort} · {rate.shippingLine}</div>}
+          </div>
           <button onClick={onClose} style={{ background:'none', border:'none', cursor:'pointer', color:C.textMuted, fontSize:20, lineHeight:1 }}>×</button>
         </div>
+
         <div style={{ padding:'16px 20px' }}>
+          {error && (
+            <div style={{ padding:'9px 12px', background:'#FEF2F2', border:'1px solid #FECACA', borderRadius:8, fontSize:12.5, color:'#DC2626', marginBottom:12 }}>
+              {error}
+            </div>
+          )}
+
           <div style={{ display:'grid', gridTemplateColumns:'80px 1fr 90px 100px', gap:8, marginBottom:12 }}>
             {[
               ['Equipment', <div style={{ padding:'7px 10px', border:`2px solid ${C.blue}`, borderRadius:7, fontSize:12.5, fontWeight:700, color:C.blue, textAlign:'center', background:C.blueDim }}>{form.containerType}</div>],
-              ['Target Rate', <input value={form.targetRate} onChange={set('targetRate')} placeholder="Enter target rate" style={iSt}/>],
+              ['Target Rate *', <input value={form.targetRate} onChange={set('targetRate')} type="number" placeholder="Enter target rate" style={iSt}/>],
               ['Currency', <select value={form.currency} onChange={set('currency')} style={sSt}>{['USD','EUR','GBP','AED','INR'].map(c=><option key={c}>{c}</option>)}</select>],
-              ['Cargo Wt (KG)', <input value={form.cargoWt} onChange={set('cargoWt')} style={iSt}/>],
-            ].map(([l,el])=>(
+              ['Cargo Wt (KG)', <input value={form.cargoWt} onChange={set('cargoWt')} type="number" style={iSt}/>],
+            ].map(([l, el]) => (
               <div key={l}><div style={{ fontSize:10.5, fontWeight:600, color:C.textMid, marginBottom:4 }}>{l}</div>{el}</div>
             ))}
           </div>
+
           <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr 80px', gap:8, marginBottom:12 }}>
             {[
               ['Preferred Liner', <input value={form.liner} onChange={set('liner')} placeholder="Any liner" style={iSt}/>],
               ['Preferred Sailing Date', <input type="date" value={form.sailingDate} onChange={set('sailingDate')} style={iSt}/>],
-              ['Free Days', <input value={form.freeDays} onChange={set('freeDays')} style={{ ...iSt, textAlign:'center' }}/>],
-            ].map(([l,el])=>(
+              ['Free Days', <input value={form.freeDays} onChange={set('freeDays')} type="number" style={{ ...iSt, textAlign:'center' }}/>],
+            ].map(([l, el]) => (
               <div key={l}><div style={{ fontSize:10.5, fontWeight:600, color:C.textMid, marginBottom:4 }}>{l}</div>{el}</div>
             ))}
           </div>
+
           <div style={{ marginBottom:16 }}>
             <div style={{ fontSize:10.5, fontWeight:600, color:C.textMid, marginBottom:4 }}>Additional Notes</div>
-            <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Any specific requirements..." style={{ ...iSt, height:'auto', padding:'8px 10px', resize:'vertical' }}/>
+            <textarea value={form.notes} onChange={set('notes')} rows={2} placeholder="Any specific requirements…" style={{ ...iSt, height:'auto', padding:'8px 10px', resize:'vertical' }}/>
           </div>
+
           <div style={{ display:'flex', gap:8, justifyContent:'flex-end' }}>
             <button onClick={onClose} className="ng-btn-sec" style={{ padding:'8px 18px', borderRadius:8, fontSize:12.5, fontWeight:600, cursor:'pointer', fontFamily:'inherit' }}>Cancel</button>
-            <button onClick={()=>setDone(true)} className="ng-btn-coral" style={{ padding:'8px 20px', borderRadius:8, fontSize:12.5, cursor:'pointer', fontFamily:'inherit' }}>Send Request</button>
+            <button onClick={handleSend} disabled={loading} className="ng-btn-coral"
+              style={{ padding:'8px 20px', borderRadius:8, fontSize:12.5, cursor:loading?'not-allowed':'pointer', fontFamily:'inherit', display:'flex', alignItems:'center', gap:6, opacity:loading?0.8:1 }}>
+              {loading && <div style={{ width:12, height:12, border:'2px solid rgba(255,255,255,0.4)', borderTopColor:'#fff', borderRadius:'50%', animation:'spin 0.7s linear infinite' }}/>}
+              {loading ? 'Sending…' : 'Send Request'}
+            </button>
           </div>
         </div>
       </div>
