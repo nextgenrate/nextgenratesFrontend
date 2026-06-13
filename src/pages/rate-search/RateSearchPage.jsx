@@ -311,6 +311,8 @@ const DEFAULT_FORM = {
   origin:null, dest:null, containerCode:'', qty:'1', cargoKg:'18000',
   cbm:'4', wm:'4', chargeableKg:'860', sailingDate:TODAY,
   currency:'USD', charges:['freight','origin','dest'], refName:'',
+   actualKg:'', lengthCm:'', widthCm:'', heightCm:'', pieces:'1',
+  chargeableKg:'860',
 };
 const ORIGIN_TOGGLES = { FCL:['DOOR','CY'], LCL:['DOOR','CFS'], AIR:null };
 const DEST_TOGGLES   = { FCL:['CY','DOOR'], LCL:['CFS','DOOR'], AIR:null };
@@ -386,7 +388,15 @@ useEffect(() => {
     const loadLabel = form.tab==='AIR'?`${form.chargeableKg} KG`:form.tab==='LCL'?`Charged Wt: ${form.wm} W/M`:form.containerCode?`${form.containerCode} x${form.qty}`:'N/A';
     const entry = { id:`rs_${Date.now()}`, originCode:form.origin.code, originName:`${form.origin.name}, ${form.origin.country}`, destCode:form.dest.code, destName:`${form.dest.name}, ${form.dest.country}`, mode, load:loadLabel, ago:'just now' };
     setRecentSearches(p => [entry, ...p.slice(0,4)]);
-    navigate('/rates/results', { state:{ origin:form.origin, dest:form.dest, tab:form.tab, containerCode:form.containerCode, qty:form.qty, sailingDate:form.sailingDate } });
+   navigate('/rates/results', {
+  state:{
+    origin:form.origin, dest:form.dest, tab:form.tab,
+    containerCode:form.containerCode, qty:form.qty, sailingDate:form.sailingDate,
+    // Air-specific
+    actualKg:form.actualKg, lengthCm:form.lengthCm, widthCm:form.widthCm,
+    heightCm:form.heightCm, pieces:form.pieces,
+  }
+});
   };
 
   const chargesLabel = (() => {
@@ -518,70 +528,154 @@ useEffect(() => {
             <div style={{ height:1, background:C.border, marginBottom:20 }}/>
 
             {/* Filter Row */}
-            <div style={{ display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap', marginBottom:24 }}>
+            {/* Filter Row */}
+<div style={{ display:'flex', gap:14, alignItems:'flex-start', flexWrap:'wrap', marginBottom:24 }}>
 
-              <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
-                <Lbl>Sailing Date</Lbl>
-                <div style={{ position:'relative' }}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:C.textMuted, pointerEvents:'none', zIndex:1 }}>
-                    <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
-                    <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
-                  </svg>
-                  <input type="date" value={form.sailingDate} min={TODAY}
-                    onChange={e => setForm(f=>({...f,sailingDate:e.target.value}))}
-                    onFocus={iFocus} onBlur={iBlur}
-                    style={{ ...inputBase, paddingLeft:40, minWidth:172 }}/>
-                </div>
-              </div>
+  {/* Sailing Date — always shown */}
+  <div style={{ display:'flex', flexDirection:'column', gap:6 }}>
+    <Lbl>Sailing Date</Lbl>
+    <div style={{ position:'relative' }}>
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:C.textMuted, pointerEvents:'none', zIndex:1 }}>
+        <rect x="3" y="4" width="18" height="18" rx="2" stroke="currentColor" strokeWidth="1.8"/>
+        <path d="M16 2v4M8 2v4M3 10h18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/>
+      </svg>
+      <input type="date" value={form.sailingDate} min={TODAY}
+        onChange={e => setForm(f=>({...f, sailingDate:e.target.value}))}
+        onFocus={iFocus} onBlur={iBlur}
+        style={{ ...inputBase, paddingLeft:40, minWidth:172 }}/>
+    </div>
+  </div>
 
-              {form.tab==='FCL' && (
-                <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:210 }}>
-                  <Lbl>Load Type</Lbl>
-                  {dataLoading
-                    ? <div style={{ height:46, background:C.inputBg, border:`1.5px solid ${C.border}`, borderRadius:10, display:'flex', alignItems:'center', paddingLeft:14 }}><span style={{ fontSize:13, color:C.textMuted }}>Loading…</span></div>
-                    : <NgLoadType code={form.containerCode} qty={form.qty} kg={form.cargoKg} containerTypes={containerTypes} onUpdate={(c,q,k)=>setForm(f=>({...f,containerCode:c,qty:q,cargoKg:k}))} open={loadOpen} setOpen={setLoadOpen}/>
-                  }
-                </div>
-              )}
+  {/* FCL load type */}
+  {form.tab==='FCL' && (
+    <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:210 }}>
+      <Lbl>Load Type</Lbl>
+      {dataLoading
+        ? <div style={{ height:46, background:C.inputBg, border:`1.5px solid ${C.border}`, borderRadius:10, display:'flex', alignItems:'center', paddingLeft:14 }}><span style={{ fontSize:13, color:C.textMuted }}>Loading…</span></div>
+        : <NgLoadType code={form.containerCode} qty={form.qty} kg={form.cargoKg} containerTypes={containerTypes} onUpdate={(c,q,k)=>setForm(f=>({...f,containerCode:c,qty:q,cargoKg:k}))} open={loadOpen} setOpen={setLoadOpen}/>
+      }
+    </div>
+  )}
 
-              {form.tab==='LCL' && (
-                <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:220 }}>
-                  <Lbl>Load Details</Lbl>
-                  <NgLCL wm={form.wm} cbm={form.cbm} onUpdate={(wm,cbm)=>setForm(f=>({...f,wm,cbm}))}/>
-                </div>
-              )}
+  {/* LCL load details */}
+  {form.tab==='LCL' && (
+    <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:220 }}>
+      <Lbl>Load Details</Lbl>
+      <NgLCL wm={form.wm} cbm={form.cbm} onUpdate={(wm,cbm)=>setForm(f=>({...f,wm,cbm}))}/>
+    </div>
+  )}
 
-              {form.tab==='AIR' && (
-                <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:195 }}>
-                  <Lbl>Chargeable Weight</Lbl>
-                  <div style={{ display:'flex', alignItems:'center', background:C.inputBg, border:`1.5px solid ${C.border}`, borderRadius:10, height:46, overflow:'hidden' }}>
-                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ color:C.textMuted, marginLeft:13, flexShrink:0 }}><path d="M3 9h18M3 15h18M12 3v18" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
-                    <input type="number" min="0.1" step="0.1" value={form.chargeableKg} onChange={e=>set('chargeableKg')(e.target.value)} style={{ flex:1, height:'100%', padding:'0 10px', border:'none', background:'transparent', fontSize:14, color:C.textPrimary, fontFamily:'inherit', outline:'none' }}/>
-                    <span style={{ padding:'0 13px', background:C.cyanDim, borderLeft:`1px solid rgba(0,194,255,0.2)`, height:'100%', display:'flex', alignItems:'center', fontSize:11.5, fontWeight:800, color:'#007DAA', letterSpacing:'0.08em' }}>KG</span>
-                  </div>
-                </div>
-              )}
+  {/* AIR — full width cargo block on its own row */}
+  {form.tab==='AIR' && (
+    <div style={{ width:'100%', marginTop:4 }}>
+      <Lbl>Cargo Dimensions &amp; Weight</Lbl>
+      <div style={{ background:C.inputBg, border:`1.5px solid ${C.border}`, borderRadius:12, padding:'14px 16px' }}>
 
-              <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:230 }}>
-                <Lbl>Locals &amp; Charges</Lbl>
-                <NgMultiSel value={form.charges} onChange={set('charges')} options={CHARGE_OPTIONS} triggerLabel={chargesLabel}
-                  icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color:C.textMuted }}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>}/>
-              </div>
-
-              <div style={{ display:'flex', flexDirection:'column', gap:6, flex:1, minWidth:180 }}>
-                <Lbl>Reference Name</Lbl>
-                <div style={{ position:'relative' }}>
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:C.textMuted, pointerEvents:'none' }}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>
-                  <input value={form.refName} onChange={e=>set('refName')(e.target.value)} placeholder="Optional reference…" onFocus={iFocus} onBlur={iBlur} style={{ ...inputBase, paddingLeft:38 }}/>
-                </div>
-              </div>
-
-              <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:128 }}>
-                <Lbl>Currency</Lbl>
-                <NgSel value={form.currency} onChange={set('currency')} options={CURRENCIES.map(c=>({ value:c.code, label:`${c.symbol} ${c.code}` }))}/>
-              </div>
+        {/* Single row: AW · Pieces · L · W · H */}
+        <div style={{ display:'grid', gridTemplateColumns:'1.2fr 0.8fr 1fr 1fr 1fr', gap:10, marginBottom: form.actualKg ? 10 : 0 }}>
+          <div>
+            <div style={{ fontSize:10, color:C.textMuted, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Actual Weight (KG) *</div>
+            <input type="number" min="0.1" step="0.1"
+              value={form.actualKg||''} onChange={e=>set('actualKg')(e.target.value)}
+              placeholder="e.g. 30"
+              style={{ ...inputBase, height:40, fontSize:13, padding:'0 10px' }}/>
+          </div>
+          <div>
+            <div style={{ fontSize:10, color:C.textMuted, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>Pieces</div>
+            <input type="number" min="1" step="1"
+              value={form.pieces||1} onChange={e=>set('pieces')(e.target.value)}
+              style={{ ...inputBase, height:40, fontSize:13, padding:'0 10px' }}/>
+          </div>
+          {[['L (cm)','lengthCm'],['W (cm)','widthCm'],['H (cm)','heightCm']].map(([lbl,key])=>(
+            <div key={key}>
+              <div style={{ fontSize:10, color:C.textMuted, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:4 }}>{lbl}</div>
+              <input type="number" min="1"
+                value={form[key]||''} onChange={e=>set(key)(e.target.value)}
+                placeholder="cm"
+                style={{ ...inputBase, height:40, fontSize:13, padding:'0 10px' }}/>
             </div>
+          ))}
+        </div>
 
+        {/* CW calculator — only shows when weight is entered */}
+        {form.actualKg && (
+          <div style={{ background:C.blueDim, border:`1px solid ${C.borderMid}`, borderRadius:9, padding:'10px 16px', display:'flex', gap:24, alignItems:'center', flexWrap:'wrap' }}>
+            {(() => {
+              const vw = form.lengthCm && form.widthCm && form.heightCm
+                ? Math.round((parseFloat(form.lengthCm)*parseFloat(form.widthCm)*parseFloat(form.heightCm))/6000*100)/100
+                : 0;
+              const totalVW = Math.round(vw * (parseInt(form.pieces)||1) * 100)/100;
+              const totalAW = Math.round(parseFloat(form.actualKg||0) * (parseInt(form.pieces)||1) * 100)/100;
+              const cw      = Math.max(totalVW, totalAW);
+              return (
+                <>
+                  {[
+                    ['Vol. Weight',        `${totalVW} KG`, false],
+                    ['Act. Weight',        `${totalAW} KG`, false],
+                    ['Chargeable Weight',  `${cw} KG`,      true ],
+                  ].map(([l,v,highlight])=>(
+                    <div key={l} style={{ display:'flex', flexDirection:'column', gap:2 }}>
+                      <div style={{ fontSize:9.5, color:C.textMid, fontWeight:700, textTransform:'uppercase', letterSpacing:'0.07em' }}>{l}</div>
+                      <div style={{ fontSize:14, fontWeight:900, color:highlight?C.navy:C.textBody, fontFamily:'ui-monospace,monospace' }}>{v}</div>
+                    </div>
+                  ))}
+                  <div style={{ marginLeft:'auto', padding:'5px 12px', background:'#FEF08A', border:'1px solid #FDE047', borderRadius:7, fontSize:11, fontWeight:700, color:'#92400E' }}>
+                    CW = MAX(Actual, Vol. Weight) ÷ 6000
+                  </div>
+                </>
+              );
+            })()}
+          </div>
+        )}
+      </div>
+    </div>
+  )}
+
+  {/* Locals & Charges + Reference + Currency — shown for FCL/LCL only inline, for AIR in a sub-row */}
+  {form.tab !== 'AIR' && (
+    <>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:230 }}>
+        <Lbl>Locals &amp; Charges</Lbl>
+        <NgMultiSel value={form.charges} onChange={set('charges')} options={CHARGE_OPTIONS} triggerLabel={chargesLabel}
+          icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color:C.textMuted }}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>}/>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, flex:1, minWidth:180 }}>
+        <Lbl>Reference Name</Lbl>
+        <div style={{ position:'relative' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:C.textMuted, pointerEvents:'none' }}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>
+          <input value={form.refName} onChange={e=>set('refName')(e.target.value)} placeholder="Optional reference…" onFocus={iFocus} onBlur={iBlur} style={{ ...inputBase, paddingLeft:38 }}/>
+        </div>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:128 }}>
+        <Lbl>Currency</Lbl>
+        <NgSel value={form.currency} onChange={set('currency')} options={CURRENCIES.map(c=>({ value:c.code, label:`${c.symbol} ${c.code}` }))}/>
+      </div>
+    </>
+  )}
+
+  {/* For AIR: Locals + Currency in a compact row below the cargo block */}
+  {form.tab === 'AIR' && (
+    <div style={{ width:'100%', display:'flex', gap:14, alignItems:'flex-end', flexWrap:'wrap' }}>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:220 }}>
+        <Lbl>Locals &amp; Charges</Lbl>
+        <NgMultiSel value={form.charges} onChange={set('charges')} options={CHARGE_OPTIONS} triggerLabel={chargesLabel}
+          icon={<svg width="14" height="14" viewBox="0 0 24 24" fill="none" style={{ color:C.textMuted }}><path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>}/>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, flex:1, minWidth:180 }}>
+        <Lbl>Reference Name</Lbl>
+        <div style={{ position:'relative' }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" style={{ position:'absolute', left:13, top:'50%', transform:'translateY(-50%)', color:C.textMuted, pointerEvents:'none' }}><path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2v10z" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round"/></svg>
+          <input value={form.refName} onChange={e=>set('refName')(e.target.value)} placeholder="Optional reference…" onFocus={iFocus} onBlur={iBlur} style={{ ...inputBase, paddingLeft:38 }}/>
+        </div>
+      </div>
+      <div style={{ display:'flex', flexDirection:'column', gap:6, minWidth:128 }}>
+        <Lbl>Currency</Lbl>
+        <NgSel value={form.currency} onChange={set('currency')} options={CURRENCIES.map(c=>({ value:c.code, label:`${c.symbol} ${c.code}` }))}/>
+      </div>
+    </div>
+  )}
+
+</div>
             {formError && (
               <div style={{ display:'flex', alignItems:'center', gap:10, background:'#FEF2F2', border:'1.5px solid #FECACA', borderRadius:10, padding:'12px 16px', fontSize:13.5, color:'#B91C1C', marginBottom:18 }}>
                 <svg width="16" height="16" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8"/><path d="M12 8v4M12 16h.01" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round"/></svg>
