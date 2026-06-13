@@ -629,10 +629,10 @@ export default function RateResultsPage() {
   const loadRates = useCallback(async()=>{
     setLoading(true);
     try {
-      const res = await api.searchRates({ mode, originPort:origin.code, destinationPort:dest.code, containerType:filters.container||containerCode||undefined, sortBy, page, limit:10, filterCarrier:filters.carrier||undefined, filterDirect:filters.direct||undefined, filterCargo:filters.cargo||undefined });
+      const res = await api.searchRates({ mode, originPort:origin.code, destinationPort:dest.code, containerType:filters.container||containerCode||undefined, sortBy, page, limit:20, filterCarrier:filters.carrier||undefined, filterDirect:filters.direct||undefined, filterCargo:filters.cargo||undefined });
       setRates(res.data.rates||[]); setPagination(res.data.pagination||{}); setFilterOptions(res.data.filters||{});
     } catch {
-      setRates(MOCK_RATES); setPagination({ total:MOCK_RATES.length, pages:1, page:1, limit:10 }); setFilterOptions({ carriers:['Maersk','Hapag-Lloyd','MSC'], cargoTypes:['FAK'], containerTypes:['40GP','20GP','40HC'] });
+      setRates(MOCK_RATES); setPagination({ total:MOCK_RATES.length, pages:1, page:1, limit:20 }); setFilterOptions({ carriers:['Maersk','Hapag-Lloyd','MSC'], cargoTypes:['FAK'], containerTypes:['40GP','20GP','40HC'] });
     } finally { setLoading(false); }
   },[mode,origin.code,dest.code,filters,sortBy,page,containerCode]);
 
