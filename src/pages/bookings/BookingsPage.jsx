@@ -46,21 +46,31 @@ function BookingDetailModal({ b, onClose }) {
           </div>
         </div>
         <div style={{ flex:1, overflow:'auto', padding:'20px 26px' }}>
-          <div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
-            {[
-              ['Route',`${b.originPort} → ${b.destinationPort}`,true],
-              ['Mode',b.mode],['Carrier',b.shippingLine||b.carrier||'—'],
-              ['Container',b.containerType||'—'],['Cargo Type',b.cargoType||'FAK'],
-              ['Incoterms',b.incoterms||'—'],['Sailing Date',fmtDate(b.sailingDate)],
-              ['Total Amount',b.totalAmount?`USD ${Number(b.totalAmount).toLocaleString()}`:'—'],
-              ['Submitted',fmtDate(b.createdAt)],['Updated',fmtDate(b.updatedAt)],
-            ].map(([l,v,mono])=>(
-              <div key={l} style={{ padding:'10px 13px', background:C.panelAlt, borderRadius:9, border:`1px solid ${C.border}` }}>
-                <div style={{ fontSize:10, fontWeight:700, color:C.textMuted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3 }}>{l}</div>
-                <div style={{ fontSize:13.5, fontWeight:600, color:C.textPrimary, fontFamily:mono?'ui-monospace,monospace':'inherit' }}>{v}</div>
-              </div>
-            ))}
-          </div>
+     
+<div style={{ display:'grid', gridTemplateColumns:'1fr 1fr', gap:10 }}>
+  {[
+    ['Route',        `${b.originPort} → ${b.destinationPort}`, true],
+    ['Mode',         b.mode==='AIR' ? '✈ Air Freight' : b.mode],
+    ['Carrier',      b.shippingLine||b.carrier||'—'],
+    // Show container for sea, chargeable weight for air
+    b.mode==='AIR'
+      ? ['Chargeable Wt', b.chargeableKg ? `${b.chargeableKg} KG` : '—']
+      : ['Container',     b.containerType||'—'],
+    ['Cargo Type',   b.cargoType||'FAK'],
+    b.mode==='AIR'
+      ? ['Dimensions', b.lengthCm ? `${b.lengthCm}×${b.widthCm}×${b.heightCm} CM` : '—']
+      : ['Incoterms',  b.incoterms||'—'],
+    ['Sailing Date', fmtDate(b.sailingDate)],
+    ['Total Amount', b.totalAmount ? `USD ${Number(b.totalAmount).toLocaleString()}` : '—'],
+    ['Submitted',    fmtDate(b.createdAt)],
+    ['Updated',      fmtDate(b.updatedAt)],
+  ].map(([l,v,mono])=>(
+    <div key={l} style={{ padding:'10px 13px', background:C.panelAlt, borderRadius:9, border:`1px solid ${C.border}` }}>
+      <div style={{ fontSize:10, fontWeight:700, color:C.textMuted, textTransform:'uppercase', letterSpacing:'0.06em', marginBottom:3 }}>{l}</div>
+      <div style={{ fontSize:13.5, fontWeight:600, color:C.textPrimary, fontFamily:mono?'ui-monospace,monospace':'inherit' }}>{v}</div>
+    </div>
+  ))}
+</div>
           {b.customerNotes&&<div style={{ marginTop:12, padding:'12px 14px', background:C.panelAlt, border:`1px solid ${C.border}`, borderRadius:10 }}><div style={{ fontSize:10, fontWeight:700, color:C.textMuted, textTransform:'uppercase', marginBottom:4 }}>Your Notes</div><div style={{ fontSize:13.5, color:C.textBody, lineHeight:1.6 }}>{b.customerNotes}</div></div>}
           {b.adminNotes&&<div style={{ marginTop:10, padding:'12px 14px', background:C.greenBg, border:`1px solid ${C.greenBorder}`, borderRadius:10 }}><div style={{ fontSize:10, fontWeight:700, color:C.green, textTransform:'uppercase', marginBottom:4 }}>Admin Notes</div><div style={{ fontSize:13.5, color:'#065F46', lineHeight:1.6 }}>{b.adminNotes}</div></div>}
         </div>
@@ -150,7 +160,14 @@ export function BookingsPage() {
                       onClick={()=>setSelected(b)}>
                       <td style={{ padding:'13px 14px', fontFamily:'ui-monospace,monospace', fontSize:11.5, fontWeight:800, color:C.blue, whiteSpace:'nowrap' }}>{b.bookingRef}</td>
                       <td style={{ padding:'13px 14px', fontWeight:700, fontFamily:'ui-monospace,monospace', fontSize:12.5, color:C.textPrimary }}>{b.originPort} → {b.destinationPort}</td>
-                      <td style={{ padding:'13px 14px' }}><span style={{ fontSize:11.5, fontWeight:700, padding:'3px 9px', borderRadius:6, background:C.blueDim, color:C.navy, border:`1px solid ${C.borderMid}` }}>{b.mode}</span></td>
+                      <td style={{ padding:'13px 14px' }}>
+  <span style={{ fontSize:11.5, fontWeight:700, padding:'3px 9px', borderRadius:6,
+    background: b.mode==='AIR' ? '#F0F8FF' : C.blueDim,
+    color: b.mode==='AIR' ? '#0369A1' : C.navy,
+    border:`1px solid ${b.mode==='AIR' ? '#BAE6FD' : C.borderMid}` }}>
+    {b.mode==='AIR' ? '✈ AIR' : b.mode}
+  </span>
+</td>
                       <td style={{ padding:'13px 14px', color:C.textBody }}>{b.shippingLine||b.carrier||'—'}</td>
                       <td style={{ padding:'13px 14px', color:C.textBody, whiteSpace:'nowrap' }}>{fmtDate(b.sailingDate)}</td>
                       <td style={{ padding:'13px 14px', fontWeight:700, fontFamily:'ui-monospace,monospace', whiteSpace:'nowrap', color:C.textPrimary }}>{b.totalAmount?`USD ${Number(b.totalAmount).toLocaleString()}`:'—'}</td>
