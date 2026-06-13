@@ -683,7 +683,16 @@ export default function RateResultsPage() {
             <span style={{ fontSize:12.5, fontWeight:600, color:C.textPrimary }}>{dest.name}</span>
             <span style={{ marginLeft:'auto', fontSize:9.5, fontWeight:800, padding:'1px 6px', background:C.navy, borderRadius:3, color:'#fff', fontFamily:'ui-monospace,monospace', letterSpacing:'0.04em' }}>{dest.code}</span>
           </div>
-          <button onClick={()=>navigate(-1)} style={{ padding:'7px 14px', background:C.coralBg, color:C.coral, border:`1.5px solid ${C.coral}40`, borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:5, fontFamily:'inherit', flexShrink:0 }}>
+          <button onClick={() => navigate('/rate-search', {
+  state: {
+    prefill: {
+      origin,
+      dest,
+      tab:           mode === 'SEA-LCL' ? 'LCL' : mode === 'AIR' ? 'AIR' : 'FCL',
+      containerCode: containerCode || '',
+    }
+  }
+})} style={{ padding:'7px 14px', background:C.coralBg, color:C.coral, border:`1.5px solid ${C.coral}40`, borderRadius:8, fontSize:12, fontWeight:700, cursor:'pointer', display:'flex', alignItems:'center', gap:5, fontFamily:'inherit', flexShrink:0 }}>
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
             Edit Search
           </button>
