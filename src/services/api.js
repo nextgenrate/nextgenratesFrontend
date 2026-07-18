@@ -1,6 +1,6 @@
 import axios from 'axios';
 
-const BASE = process.env.REACT_APP_API_URL || 'https://nextgenratesbackend-production.up.railway.app/api';
+const BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
 
 const api = axios.create({ baseURL: BASE, withCredentials: true });
 
@@ -87,8 +87,8 @@ export const getBookings   = (p)  => api.get('/bookings', { params: p });
 export const getBooking    = (id) => api.get(`/bookings/${id}`);
 
 /* ── Enquiries ── */
-export const createEnquiry = (d) => api.post('/bookings/enquiries', d);
-export const getEnquiries  = (p) => api.get('/bookings/enquiries', { params: p });
+export const getEnquiries  = (params) => api.get('/enquiries', { params });
+export const createEnquiry = (d)      => api.post('/enquiries', d);
 
 /* ── Profile ── */
 export const updateProfile = (d) => api.put('/auth/profile', d);
