@@ -138,22 +138,25 @@ function LivePortInput({ value, onChange, portType = 'sea', placeholder, isDoor 
     }
   };
 
-  const handleInput = (e) => {
-    const q = e.target.value;
-    setQuery(q);
-    if (value) onChange(null);
+const handleInput = (e) => {
+  const q = e.target.value;
+  setQuery(q);
+  if (value) onChange(null);
 
-    // Immediately filter client-side for responsiveness
+  // Debounce EVERYTHING — both the client-side filter and the server
+  // search — so nothing runs until the user pauses typing for 300ms.
+  // (Previously the client filter ran instantly on every keystroke,
+  // which is what made it feel like it was "searching on each input".)
+  clearTimeout(debounce.current);
+  debounce.current = setTimeout(() => {
     const clientResults = clientFilter(q);
     setResults(clientResults);
     if (clientResults.length > 0) setOpen(true);
 
-    // Also hit server for queries that might not be in the prefetched list
-    clearTimeout(debounce.current);
-    if (q.trim().length >= 2) {
-      debounce.current = setTimeout(() => serverSearch(q), 260);
-    }
-  };
+    // Hit the server too, for queries not covered by the prefetched list
+    if (q.trim().length >= 2) serverSearch(q);
+  }, 300);
+};
 
   // When prefetch completes while focused, open dropdown
   useEffect(() => {
